@@ -1,0 +1,4 @@
+depthai==3.10.0
+numpy>=2.0,<3
+opencv-python==4.14.0.94
+roarm-sdk==0.1.1

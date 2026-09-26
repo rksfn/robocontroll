@@ -1,0 +1,11 @@
+{
+  "rover_url": "http://10.176.60.15",
+  "rover_max_speed": 700,
+  "arm_port": "COM7",
+  "server_host": "127.0.0.1",
+  "server_port": 8765,
+  "camera_mode": "rgb",
+  "camera_width": 640,
+  "camera_height": 400,
+  "camera_fps": 15
+}
