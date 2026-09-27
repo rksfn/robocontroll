@@ -30,10 +30,15 @@ SHOULDER_HEIGHT = 126.06          # base bottom -> shoulder joint
 # Joint ranges the firmware can actually command (it silently clamps
 # outside these, which also makes the arm jump).
 SHOULDER_RANGE = (-math.pi / 2, math.pi / 2)
-ELBOW_RANGE = ((512 - 1024) * 2 * math.pi / 4096, (2960 - 1024) * 2 * math.pi / 4096)
+# Upper end: the real elbow folds to ~178 deg (measured on this arm), more than the
+# 2960-count figure (170 deg) suggested - using 170 blocked poses the arm actually reaches.
+ELBOW_RANGE = ((512 - 1024) * 2 * math.pi / 4096, math.radians(180))
 WRIST_RANGE = (-math.pi / 2, math.pi / 2)
-MARGIN = math.radians(3)          # stay a little inside every limit
-REACH_MARGIN_MM = 6.0             # avoid the fully-stretched singularity
+# The base servo cannot wrap: +180 and -180 deg are opposite ends of its
+# travel.  Keep a dead zone directly behind the arm so no move crosses it.
+BASE_LIMIT = math.radians(178)
+MARGIN = math.radians(1)          # stay a little inside every limit
+REACH_MARGIN_MM = 2.0             # avoid the fully-stretched / fully-folded singularity
 
 
 def _linkage(a_in, b_in):
@@ -79,13 +84,34 @@ def fk(base, shoulder, elbow, wrist):
     return r * math.cos(base), r * math.sin(base), z, elbow + shoulder + wrist - math.pi / 2
 
 
+def _outside(x, y, z, pitch_deg):
+    """Graded 'how far out of reach' (always < 0) for poses IK cannot solve, so a
+    move that brings an out-of-reach arm back towards its workspace is recognised
+    as an improvement instead of every nearby pose scoring the same."""
+    rot = TE + (math.radians(pitch_deg) - math.pi)
+    dx, dy = -LE * math.cos(rot), -LE * math.sin(rot)
+    dist = math.hypot(x, y)
+    wr = dist - dx
+    if wr <= 1e-6:
+        return -5.0 + max(-3.0, wr / 1000.0)
+    lc = math.hypot(wr, z + dy)
+    inner = abs(L2 - L3) + REACH_MARGIN_MM
+    outer = L2 + L3 - REACH_MARGIN_MM
+    miss = inner - lc if lc < inner else lc - outer if lc > outer else 0.0
+    return -1.0 - min(miss, 400.0) / 100.0
+
+
 def slack(x, y, z, pitch_deg):
     """How far inside the joint limits a pose is (radians); < 0 = not allowed."""
     try:
-        _, s, e, w = ik(x, y, z, math.radians(pitch_deg))
+        b, s, e, w = ik(x, y, z, math.radians(pitch_deg))
     except (ValueError, ZeroDivisionError):
-        return -10.0
-    values = [s - SHOULDER_RANGE[0], SHOULDER_RANGE[1] - s,
+        try:
+            return _outside(x, y, z, pitch_deg)
+        except (ValueError, ZeroDivisionError):
+            return -10.0
+    values = [BASE_LIMIT - abs(b),
+              s - SHOULDER_RANGE[0], SHOULDER_RANGE[1] - s,
               e - ELBOW_RANGE[0], ELBOW_RANGE[1] - e,
               w - WRIST_RANGE[0], WRIST_RANGE[1] - w]
     if any(math.isnan(v) for v in values):

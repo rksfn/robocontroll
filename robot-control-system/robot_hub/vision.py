@@ -66,6 +66,19 @@ def fit_homography(src, dst):
     return [[v / k for v in row] for row in full]
 
 
+def fit_affine(src, dst):
+    """Least-squares affine map src (u,v) -> dst (x,y) as a 3x3 matrix (last row 0 0 1).
+    A camera looking straight down at a flat table is almost exactly affine, and unlike a
+    homography it cannot "blow up" when the points are few or bunched together."""
+    if len(src) < 3:
+        raise ValueError("Need at least 3 calibration points")
+    rows = [[u, v, 1.0] for u, v in src]
+    ata = [[sum(r[i] * r[j] for r in rows) for j in range(3)] for i in range(3)]
+    ax = _solve(ata, [sum(r[i] * d[0] for r, d in zip(rows, dst)) for i in range(3)])
+    ay = _solve(ata, [sum(r[i] * d[1] for r, d in zip(rows, dst)) for i in range(3)])
+    return [ax, ay, [0.0, 0.0, 1.0]]
+
+
 def apply(h, u, v):
     w = h[2][0] * u + h[2][1] * v + h[2][2]
     if abs(w) < 1e-12:
@@ -97,6 +110,9 @@ class Calibration:
         self.table_z = None
         self.image_size = None
         self.error_mm = None
+        self.inliers = []
+        self.point_errors = []
+        self.look_pose = None       # camera on the gripper: pose the photos are taken from
         self.load()
 
     # -------------------------------------------------------------- storage
@@ -107,7 +123,8 @@ class Calibration:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             self.points = data.get("points", [])
             self.image_size = data.get("image_size")
-            if len(self.points) >= 4:
+            self.look_pose = data.get("look_pose")
+            if len(self.points) >= 3:
                 self._fit()
         except Exception:
             self.points, self.h = [], None
@@ -116,6 +133,7 @@ class Calibration:
         self.path.write_text(json.dumps({
             "points": self.points, "image_size": self.image_size,
             "table_z": self.table_z, "error_mm": self.error_mm,
+            "look_pose": self.look_pose,
             "note": "pixel (u,v) in the camera image <-> arm (x,y,z) mm; written by the hub",
         }, indent=2), encoding="utf-8")
 
@@ -131,7 +149,7 @@ class Calibration:
             self.image_size = list(image_size)
             self.points.append({"px": [round(u, 1), round(v, 1)],
                                 "arm": [round(x, 1), round(y, 1), round(z, 1)]})
-            if len(self.points) >= 4:
+            if len(self.points) >= 3:
                 self._fit()
             self.save()
             return self.status()
@@ -142,8 +160,18 @@ class Calibration:
                 self.points.pop()
             self.h = self.h_inv = None
             self.table_z = self.error_mm = None
-            if len(self.points) >= 4:
+            if len(self.points) >= 3:
                 self._fit()
+            self.save()
+            return self.status()
+
+    def set_look_pose(self, pose):
+        """New viewpoint for a gripper-mounted camera: old points no longer apply."""
+        with self._lock:
+            self.look_pose = [round(float(v), 1) for v in pose[:5]] if pose else None
+            self.points, self.h, self.h_inv = [], None, None
+            self.table_z = self.error_mm = self.image_size = None
+            self.inliers, self.point_errors = [], []
             self.save()
             return self.status()
 
@@ -154,17 +182,63 @@ class Calibration:
             self.save()
             return self.status()
 
+    INLIER_MM = 15.0
+
     def _fit(self):
+        """Fit pixel -> arm on the largest set of points that agree with each
+        other (within INLIER_MM), so a few badly clicked points are ignored."""
         src = [p["px"] for p in self.points]
         dst = [p["arm"][:2] for p in self.points]
-        h = fit_homography(src, dst)
+        keep = list(range(len(src)))
+        if len(src) >= 6:
+            keep = self._consistent_set(src, dst) or keep
+        # affine unless there are plenty of good points AND a homography is clearly better
+        h = fit_affine([src[i] for i in keep], [dst[i] for i in keep])
+        self.model = "affine"
+        if len(keep) >= 8:
+            try:
+                hh = fit_homography([src[i] for i in keep], [dst[i] for i in keep])
+                ea = max(math.dist(apply(h, *src[i]), dst[i]) for i in keep)
+                eh = max(math.dist(apply(hh, *src[i]), dst[i]) for i in keep)
+                if eh < 0.7 * ea and abs(hh[2][0]) * 640 + abs(hh[2][1]) * 480 < 0.5:
+                    h, self.model = hh, "homography"
+            except (ValueError, ZeroDivisionError):
+                pass
         errs = []
         for (u, v), (x, y) in zip(src, dst):
             px, py = apply(h, u, v)
             errs.append(math.hypot(px - x, py - y))
         self.h, self.h_inv = h, invert(h)
-        self.table_z = sum(p["arm"][2] for p in self.points) / len(self.points)
-        self.error_mm = round(max(errs), 1)
+        self.inliers = keep
+        self.point_errors = [round(e, 1) for e in errs]
+        self.table_z = sum(self.points[i]["arm"][2] for i in keep) / len(keep)
+        self.error_mm = round(max(errs[i] for i in keep), 1)
+
+    def _consistent_set(self, src, dst):
+        import itertools
+        import random
+        n = len(src)
+        combos = itertools.combinations(range(n), 3)
+        if n > 20:
+            rng = random.Random(0)
+            combos = (tuple(rng.sample(range(n), 3)) for _ in range(3000))
+        best = []
+        for combo in combos:
+            try:
+                h = fit_affine([src[i] for i in combo], [dst[i] for i in combo])
+            except (ValueError, ZeroDivisionError):
+                continue
+            inl = []
+            for i in range(n):
+                try:
+                    x, y = apply(h, *src[i])
+                except ValueError:
+                    continue
+                if math.hypot(x - dst[i][0], y - dst[i][1]) < self.INLIER_MM:
+                    inl.append(i)
+            if len(inl) > len(best):
+                best = inl
+        return best if len(best) >= 3 else None
 
     # -------------------------------------------------------------- use
     @property
@@ -173,7 +247,7 @@ class Calibration:
 
     def pixel_to_arm(self, u, v, image_size=None):
         if not self.ready:
-            raise RuntimeError("Camera is not calibrated yet (need 4+ points)")
+            raise RuntimeError("Camera is not calibrated yet (need 3+ points)")
         u, v = self._scale_in(u, v, image_size)
         return apply(self.h, u, v)
 
@@ -199,4 +273,8 @@ class Calibration:
         return {"ready": self.ready, "points": list(self.points),
                 "table_z": None if self.table_z is None else round(self.table_z, 1),
                 "error_mm": self.error_mm, "image_size": self.image_size,
+                "look_pose": self.look_pose,
+                "used": list(self.inliers) if self.ready else [],
+                "model": getattr(self, "model", ""),
+                "point_errors": list(self.point_errors) if self.ready else [],
                 "h_inv": self.h_inv}

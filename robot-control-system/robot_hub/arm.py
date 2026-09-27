@@ -30,19 +30,20 @@ POSE_LIMITS = ((-500, 500), (-500, 500), (-600, 600),
                (-90, 90), (-180, 180), (0, 90))
 
 DEFAULTS = {
-    "arm_rate_hz": 40,
-    "arm_max_speed_mm_s": 250,
-    "arm_goal_speed_mm_s": 250,
-    "arm_wrist_speed_deg_s": 60,
-    "arm_grip_speed_deg_s": 90,
+    "arm_rate_hz": 30,
+    "arm_max_speed_mm_s": 450,
+    "arm_goal_speed_mm_s": 450,
+    "arm_wrist_speed_deg_s": 140,
+    "arm_grip_speed_deg_s": 200,
     # Extra user limits on top of the real kinematic reach check.
     "arm_reach_min_mm": 60,
     "arm_reach_max_mm": 540,
     "arm_z_min_mm": -120,
     "arm_z_max_mm": 500,
-    "arm_lag_limit_mm": 60,
-    "arm_accel_mm_s2": 700,
+    "arm_lag_limit_mm": 90,
+    "arm_accel_mm_s2": 1600,
     "arm_deadman_s": 0.3,
+    "gripper_torque": 350,          # 1-1000 squeeze limit (firmware T:107); 0 = leave as is
 }
 
 
@@ -71,10 +72,10 @@ def _finite(values):
 def encode_pose(pose):
     """User pose [x,y,z mm, pitch deg, roll deg, grip deg] -> T:1041 line."""
     x, y, z, pitch, roll, grip = pose
-    cmd = {"T": 1041, "x": round(x, 1), "y": round(y, 1), "z": round(z, 1),
-           "t": round(math.radians(pitch), 4), "r": round(math.radians(roll), 4),
+    cmd = {"T": 1041, "x": round(x, 2), "y": round(y, 2), "z": round(z, 2),
+           "t": round(math.radians(pitch), 5), "r": round(math.radians(roll), 5),
            # Same "angular_direct" gripper convention as roarm-sdk.
-           "g": round(math.pi - math.radians(grip), 4)}
+           "g": round(math.pi - math.radians(grip), 5)}
     return (json.dumps(cmd, separators=(",", ":")) + "\n").encode()
 
 
@@ -108,13 +109,46 @@ def open_serial(port):
     return ser
 
 
+def find_arm_port(skip=()):
+    """Find the RoArm on any USB serial port: it answers {"T":105} with a T:1051 frame."""
+    try:
+        from serial.tools import list_ports
+    except ImportError:
+        return None
+    for info in list_ports.comports():
+        if info.device in skip:
+            continue
+        try:
+            ser = open_serial(info.device)
+        except Exception:
+            continue                       # busy or not a serial device we can open
+        try:
+            buf, end = b"", time.monotonic() + 1.5
+            while time.monotonic() < end:
+                ser.write(b'{"T":105}\n')
+                buf += ser.read(512)
+                if b'"T":1051' in buf and b'"tit"' in buf:
+                    return info.device
+                time.sleep(0.1)
+        except Exception:
+            pass
+        finally:
+            try:
+                ser.close()
+            except Exception:
+                pass
+    return None
+
+
 class ArmDriver:
     def __init__(self, port, safety, factory=None, config=None, autostart=True):
         self.port = port
         self.safety = safety
         self.cfg = dict(DEFAULTS)
         self.cfg.update({k: v for k, v in (config or {}).items() if k in DEFAULTS})
-        self._factory = factory or (lambda: open_serial(port))
+        self._auto_port = factory is None       # real hardware: may search for the arm
+        self._factory = factory or (lambda: open_serial(self.port))
+        self._search_next = str(port).lower() == "auto"
         self._lock = threading.RLock()
         self._ser = None
         self._error = "Not connected"
@@ -136,6 +170,8 @@ class ArmDriver:
         self._stall_since = None
         self._blocked_since = None
         self._edge_notice = 0.0
+        self._goal_mode = "line"
+        self._goal_mode_for = None
         self._notice = None
         self.table_z = None
         self._done = threading.Event()
@@ -148,10 +184,22 @@ class ArmDriver:
     # ------------------------------------------------------------ connection
     def _connect(self):
         self._last_connect_attempt = time.monotonic()
+        if self._auto_port and self._search_next:
+            found = find_arm_port()
+            self._search_next = False
+            if found:
+                if found != self.port:
+                    self.safety.record("arm", "found", f"Arm found on {found}")
+                self.port = found
+            elif str(self.port).lower() == "auto":
+                self._error = "Arm not found on any USB port (plugged in and powered?)"
+                self._search_next = True
+                return False
         try:
             ser = self._factory()
         except Exception as exc:
-            self._error = f"Cannot open {self.port}: {exc}"
+            self._error = f"Cannot open {self.port}: {exc} - searching other USB ports"
+            self._search_next = True            # e.g. plugged into a different USB port
             return False
         with self._lock:
             self._ser = ser
@@ -213,16 +261,34 @@ class ArmDriver:
                 if pose is not None:
                     self._on_feedback(pose)
 
+    @staticmethod
+    def _plausible(pose):
+        """Unpowered servos make the board report impossible angles (e.g. pitch -540, grip 180)."""
+        return abs(pose[3]) <= 200 and -20 <= pose[5] <= 135 and all(abs(v) < 2000 for v in pose[:3])
+
     def _on_feedback(self, pose):
         with self._lock:
+            now = time.monotonic()
+            if not self._plausible(pose):
+                # link is alive but the servos are not: stop everything, resync when they answer again
+                self._measured_time = now
+                self._target = self._goal = None
+                self._jog = [0.0] * 6
+                self._vel = [0.0, 0.0, 0.0]
+                self._error = ("Arm servos not answering (impossible position readings) - "
+                               "check the arm's power supply is on")
+                return
+            if self._measured is None or any(abs(a - b) > 0.05 for a, b in zip(pose, self._measured)):
+                self._changed_time = now          # real servo readings always jitter a little
             self._measured = pose
-            self._measured_time = time.monotonic()
+            self._measured_time = now
             if self._target is None:
                 # First feedback after connect: start from where the arm is,
                 # so enabling control never causes a jump.
                 self._target = self._clamp_pose(list(pose))
                 self._last_sent = list(self._target)
                 self._error = ""
+                self._torque_pending = True
 
     # ------------------------------------------------------------ geometry
     def _clamp_xyz(self, x, y, z):
@@ -245,7 +311,9 @@ class ArmDriver:
     def _z_floor(self):
         floor = self.cfg["arm_z_min_mm"]
         if self.table_z is not None:
-            floor = max(floor, self.table_z)
+            # 10 mm below the measured table: room for uneven tables and for
+            # touching the table during calibration, still far from a crash.
+            floor = max(floor, self.table_z - 10)
         return floor
 
     def pose_slack(self, pose):
@@ -265,7 +333,7 @@ class ArmDriver:
     def _limit_move(self, old, new):
         """Largest part of the move old->new that stays reachable."""
         s_new = self.pose_slack(new)
-        if s_new >= 0:
+        if s_new >= 0.004:
             return new, False
         s_old = self.pose_slack(old)
         if s_old < 0:
@@ -288,13 +356,49 @@ class ArmDriver:
                 and c["arm_z_min_mm"] - 1 <= z <= c["arm_z_max_mm"] + 1)
 
     # ------------------------------------------------------------ control loop
+    def _check_link(self, now):
+        """Never move blind: if position feedback stops, freeze the motion."""
+        with self._lock:
+            if self._target is None or self._measured is None:
+                return
+            stale = now - self._measured_time
+            if stale > 1.5 and (any(self._jog) or self._goal is not None):
+                self._jog = [0.0] * 6
+                self._goal = None
+                self._vel = [0.0, 0.0, 0.0]
+                self._goal_speed = 0.0
+                self._notify("Arm stopped: lost position feedback (check USB cable/power)")
+        if stale > 5.0:
+            self._drop("No feedback for 5 s - reconnecting")
+            return
+        # Servo power missing: the board (USB-powered) keeps answering with the
+        # last known position, frozen to the last decimal, while commands are ignored.
+        with self._lock:
+            frozen = now - getattr(self, "_changed_time", now)
+            off = math.dist(self._target[:3], self._measured[:3]) if self._target and self._measured else 0
+            # real arms settle 1-2.5 cm short (sag) and then read perfectly still, so only a big
+            # gap between command and position counts as "no servo power"
+            # count only the time the arm has been BOTH far from its command AND not moving:
+            # an arm resting still at the look pose (identical readings) is fine until a move starts
+            if off > 35:
+                if getattr(self, "_off_since", None) is None:
+                    self._off_since = now
+            else:
+                self._off_since = None
+            stuck = now - max(getattr(self, "_changed_time", now), self._off_since or now)
+            self._servos_silent = frozen > 3.0 and off > 35 and stuck > 3.0
+        if self._servos_silent and now - getattr(self, "_silent_notice", 0) > 10:
+            self._silent_notice = now
+            self._notify("Arm servos are not responding (position frozen) - check that the arm's "
+                         "power supply is plugged in and switched on")
+
     def _notify(self, message):
         self._notice = {"time": time.time(), "message": message}
         self.safety.record("arm", "warning", message)
 
     def _lag(self, xyz, now):
         m = self._measured
-        if m is None or now - self._measured_time > 0.5:
+        if m is None or now - self._measured_time > 1.5:
             return None
         return math.sqrt(sum((a - b) ** 2 for a, b in zip(xyz, m[:3])))
 
@@ -339,32 +443,64 @@ class ArmDriver:
                 target[4] += self._jog[4] * c["arm_wrist_speed_deg_s"] * s * dt
                 target[5] += self._jog[5] * c["arm_grip_speed_deg_s"] * dt
             else:
-                # Goal: travel along an arc around the base (cylindrical
-                # interpolation) so long moves never cut through the base,
-                # with a trapezoidal speed profile.
+                # Goal: interpolate in JOINT space (like an industrial arm's
+                # "MoveJ").  Every in-between pose is then a valid joint
+                # configuration, and the base never wraps through +-180 deg.
+                # Falls back to a cylindrical path if IK is unavailable.
                 goal = self._goal
                 self._vel = [0.0, 0.0, 0.0]
-                r0, t0 = math.hypot(target[0], target[1]), math.atan2(target[1], target[0])
-                r1, t1 = math.hypot(goal[0], goal[1]), math.atan2(goal[1], goal[0])
-                dth = (t1 - t0 + math.pi) % (2 * math.pi) - math.pi
-                dr, dz = r1 - r0, goal[2] - target[2]
-                length = math.sqrt(dr * dr + (0.5 * (r0 + r1) * dth) ** 2 + dz * dz)
                 vmax = c["arm_goal_speed_mm_s"] * self._goal_scale
+                if self._goal_mode_for is not goal:
+                    # Straight line if every point on it is reachable (precise,
+                    # e.g. straight down onto an object); otherwise joint space.
+                    self._goal_mode_for = goal
+                    self._goal_mode = "line" if all(
+                        self.pose_slack([a + (b - a) * k / 24 for a, b in zip(target, goal)]) >= 0.004
+                        for k in range(1, 25)) else "joint"
+                j0 = None
+                if self._goal_mode == "line":
+                    d4 = [b - a for a, b in zip(target[:4], goal[:4])]
+                    length = max(math.dist(target[:3], goal[:3]), 150 * math.radians(abs(d4[3])))
+                else:
+                    try:
+                        j0 = kinematics.ik(target[0], target[1], target[2], math.radians(target[3]))
+                        j1 = kinematics.ik(goal[0], goal[1], goal[2], math.radians(goal[3]))
+                    except (ValueError, ZeroDivisionError):
+                        j0 = j1 = None
+                if self._goal_mode == "line":
+                    pass
+                elif j0 is not None:
+                    dj = [b - a for a, b in zip(j0, j1)]
+                    cart = math.dist(target[:3], goal[:3])
+                    # 1 rad of joint motion ~ 300 mm of tool motion
+                    length = max(cart, 300 * max(abs(v) for v in dj[:3]),
+                                 150 * abs(dj[3]))
+                else:
+                    r0, t0 = math.hypot(target[0], target[1]), math.atan2(target[1], target[0])
+                    r1, t1 = math.hypot(goal[0], goal[1]), math.atan2(goal[1], goal[0])
+                    dth = t1 - t0          # no wrap-around: the base cannot spin through 180
+                    dr, dz = r1 - r0, goal[2] - target[2]
+                    length = math.sqrt(dr * dr + (0.5 * (r0 + r1) * dth) ** 2 + dz * dz)
                 self._goal_speed = min(self._goal_speed + accel * dt, vmax,
                                        math.sqrt(2 * accel * length) + 5)
                 step = self._goal_speed * dt
                 if length <= max(step, 0.05):
-                    target[:3] = goal[:3]
+                    target[:4] = goal[:4]
+                elif self._goal_mode == "line":
+                    f = step / length
+                    target[:4] = [a + f * d for a, d in zip(target[:4], d4)]
+                elif j0 is not None:
+                    f = step / length
+                    x, y, z, t = kinematics.fk(*[a + f * d for a, d in zip(j0, dj)])
+                    target[:4] = [x, y, z, math.degrees(t)]
                 else:
                     f = step / length
                     r, th, z = r0 + f * dr, t0 + f * dth, target[2] + f * dz
                     target[:3] = [r * math.cos(th), r * math.sin(th), z]
-                for i, rate in ((3, c["arm_wrist_speed_deg_s"]), (4, c["arm_wrist_speed_deg_s"]),
-                                (5, c["arm_grip_speed_deg_s"])):
+                    target[3] += _clamp(goal[3] - target[3], -c["arm_wrist_speed_deg_s"] * dt,
+                                        c["arm_wrist_speed_deg_s"] * dt)
+                for i, rate in ((4, c["arm_wrist_speed_deg_s"]), (5, c["arm_grip_speed_deg_s"])):
                     target[i] += _clamp(goal[i] - target[i], -rate * dt, rate * dt)
-                if all(abs(g - t) < 0.05 for g, t in zip(goal, target)):
-                    self._goal = None
-                    self._goal_speed = 0.0
 
             target = self._clamp_pose(target)
             target, limited = self._limit_move(self._target, target)
@@ -386,25 +522,37 @@ class ArmDriver:
             # (blocked, overloaded or unreachable pose) pause the command
             # instead of running away.  If it stays stuck, give up clearly.
             new_lag = self._lag(target[:3], now)
-            if new_lag is not None and new_lag > c["arm_lag_limit_mm"] \
+            # Feedback is up to ~0.1 s old, so allow for distance commanded since.
+            speed_now = max(self._goal_speed, math.sqrt(sum(v * v for v in self._vel)))
+            allowance = c["arm_lag_limit_mm"] + speed_now * (now - self._measured_time + 0.1)
+            if new_lag is not None and new_lag > allowance \
                     and new_lag > (self._lag(old_xyz, now) or 0):
                 target[:3] = old_xyz
                 self._vel = [0.0, 0.0, 0.0]
                 self._goal_speed = 0.0
                 if self._stall_since is None:
                     self._stall_since = now
+                    self._wake_pending = True          # overloaded servos switch torque off: re-enable NOW
                 elif now - self._stall_since > 1.5 and (self._goal or any(self._jog)):
                     self._goal = None
                     self._jog = [0.0] * 6
                     self._stall_since = None
-                    m = self._measured
-                    self._target = self._clamp_pose(list(m))
-                    self._notify("Arm could not follow (blocked or pose not reachable) - "
-                                 "stopped where it is")
+                    m = self._clamp_pose(list(self._measured))
+                    if self.pose_slack(m) >= 0.004:
+                        self._target = m
+                    else:
+                        self._target = list(self._last_sent or self._target)
+                    self._notify("Arm could not follow (blocked, unpowered or overloaded) - "
+                                 "stopped where it is; re-enabling servo torque")
+                    self._stalls = getattr(self, "_stalls", 0) + 1
+                    self._wake_pending = True
                     return list(self._target)
             else:
                 self._stall_since = None
             self._target = target
+            if self._goal is not None and all(abs(g - t) < 0.05 for g, t in zip(self._goal, target)):
+                self._goal = None          # arrived (checked after all limits)
+                self._goal_speed = 0.0
             return list(target)
 
     def _run(self):
@@ -420,14 +568,30 @@ class ArmDriver:
                 if now - self._last_feedback_request >= 0.1:
                     self._last_feedback_request = now
                     self._write(b'{"T":105}\n')
+                if getattr(self, "_torque_pending", False):
+                    self._torque_pending = False
+                    tor = int(self.cfg["gripper_torque"])
+                    if 0 < tor <= 1000:
+                        # stored in the servo's EEPROM, so only once per connection
+                        self._write(('{"T":107,"tor":%d}\n' % tor).encode())
+                if getattr(self, "_wake_pending", False):
+                    self._wake_pending = False
+                    self._write(b'{"T":210,"cmd":1}\n')      # servo torque back on
+                self._check_link(now)
                 target = self.step(dt, now)
+                if target is not None and target != self._last_sent \
+                        and kinematics.slack(round(target[0], 2), round(target[1], 2), round(target[2], 2),
+                                             math.degrees(round(math.radians(target[3]), 5))) < 0 \
+                        and self._last_sent is not None and kinematics.slack(*self._last_sent[:4]) >= 0:
+                    target = None      # never transmit a pose that rounding pushed out of reach
                 if target is not None and target != self._last_sent:
                     if self._write(encode_pose(target)):
                         self._last_sent = target
                         self._sent_count += 1
                 if (self._target is None and self._ser is not None
                         and now - self._last_connect_attempt > 4.0):
-                    self._drop("No feedback from arm (wrong port, or arm not powered?)")
+                    self._search_next = True
+                    self._drop("No feedback from arm on " + str(self.port) + " - searching other USB ports")
             self._done.wait(max(0.0, period - (time.monotonic() - now)))
 
     # ------------------------------------------------------------ public API
@@ -468,14 +632,34 @@ class ArmDriver:
             if not same_place and not self.reachable(goal):
                 if not clamp:
                     raise ValueError(self.explain_unreachable(goal))
-                start = list(self._target)
-                if not self.reachable(start):
-                    raise ValueError(self.explain_unreachable(goal))
-                goal, _ = self._limit_move(start, goal)
+                projected = self._project_reachable(goal)
+                if projected is not None:
+                    goal = projected
+                else:
+                    start = list(self._target)
+                    if not self.reachable(start):
+                        raise ValueError(self.explain_unreachable(goal))
+                    goal, _ = self._limit_move(start, goal)
             self._jog = [0.0] * 6
             self._goal = goal
             self._goal_scale = _clamp(_finite([speed])[0], 0.05, 1.0)
             return list(goal)
+
+    def _project_reachable(self, goal):
+        """Nearest reachable point in the SAME direction from the base
+        (same height and pitch): what a user clicking far away means."""
+        x, y, z, pitch = goal[:4]
+        angle = math.atan2(y, x)
+        lim = kinematics.BASE_LIMIT - math.radians(4)
+        angle = max(-lim, min(lim, angle))
+        r_want = math.hypot(x, y)
+        best = None
+        for a, b in kinematics.radial_intervals(z, pitch, step=2):
+            for r in (a + 2, b - 2, min(max(r_want, a + 2), b - 2)):
+                cand = [r * math.cos(angle), r * math.sin(angle), z] + list(goal[3:])
+                if self.pose_slack(cand) >= 0.004 and (best is None or abs(r - r_want) < best[0]):
+                    best = (abs(r - r_want), cand)
+        return best and best[1]
 
     def explain_unreachable(self, pose):
         x, y, z, pitch = pose[:4]
@@ -510,6 +694,13 @@ class ArmDriver:
             self._goal_scale = 0.4
             return list(goal)
 
+    def wake(self):
+        """Servo torque ON (RoArm JSON T:210). Servos switch torque off to protect
+        themselves after an overload (e.g. pushing into the table) - this turns it back on."""
+        self._write(b'{"T":210,"cmd":1}\n')
+        self._stalls = 0
+        return True
+
     def hold(self):
         """Stop all arm motion now and hold the current physical position."""
         with self._lock:
@@ -520,7 +711,9 @@ class ArmDriver:
             m = self._measured
             if self._target is not None and m is not None \
                     and time.monotonic() - self._measured_time < 0.5:
-                self._target = self._clamp_pose(list(m))
+                held = self._clamp_pose(list(m))
+                if self.pose_slack(held) >= 0.004 or self.pose_slack(self._target) < 0:
+                    self._target = held
 
     def refresh(self):
         with self._lock:
@@ -539,7 +732,9 @@ class ArmDriver:
                 "goal": self._goal and [round(v, 1) for v in self._goal],
                 "moving": bool(any(self._jog) or self._goal or any(abs(v) > 1 for v in self._vel)),
                 "notice": self._notice,
-                "link_ok": age is not None and age < 0.6,
+                "link_ok": age is not None and age < 1.2,
+                "stalls": getattr(self, "_stalls", 0),
+                "servos_silent": bool(getattr(self, "_servos_silent", False)),
                 "feedback_age_s": None if age is None else round(age, 2),
                 "workspace": {k: self.cfg[k] for k in ("arm_reach_min_mm", "arm_reach_max_mm",
                                                        "arm_z_min_mm", "arm_z_max_mm")},

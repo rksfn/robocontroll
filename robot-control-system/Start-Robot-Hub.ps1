@@ -1,4 +1,11 @@
 $ErrorActionPreference = 'Stop'
+# Stop Windows powering down USB ports (a common cause of the arm's COM port dropping).
+try {
+    powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 | Out-Null
+    powercfg /SETDCVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 | Out-Null
+    powercfg /SETACTIVE SCHEME_CURRENT | Out-Null
+    Write-Host 'USB selective suspend disabled (keeps the arm connection alive).'
+} catch { Write-Host 'Could not change USB power setting (not critical).' }
 Set-Location -LiteralPath $PSScriptRoot
 $pythonPath = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $pythonPath)) {

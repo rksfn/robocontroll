@@ -39,7 +39,10 @@ details{margin-top:10px}summary{cursor:pointer;color:var(--muted);font-size:12px
 .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--amber)}
 .locked{position:absolute;inset:40px 0 0 0;background:rgba(13,20,28,.55);display:flex;align-items:flex-start;justify-content:center;padding-top:120px;border-radius:11px;pointer-events:none;font-weight:700;color:#ffd6da;opacity:0;transition:opacity .2s}
 .isStopped .locked{opacity:1}
-.camWrap canvas{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;border-radius:0}.camWrap.pointing canvas{cursor:crosshair}.modes{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.modes button{min-height:32px;font-size:13px;padding:0 12px;background:#223444}.modes button.sel{background:var(--blue)}.modes button[data-mode=calibrate].sel{background:#8a5a12}.calbox{background:#2a2112;border:1px solid #6d5220;border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.5;margin-top:8px;display:none}.calbox.show{display:block}.calbox ol{margin:4px 0 6px 18px;padding:0}.calbox .row2{display:flex;gap:6px;margin-top:6px}.calbox button{min-height:30px;font-size:12px;padding:0 10px}.taskbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.taskbar button{min-height:32px;font-size:13px;padding:0 12px}.taskstate{font:600 12px Consolas,monospace;padding:4px 8px;border-radius:6px;background:#0f1821;flex:1;min-width:180px}#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#3a1c22;border:1px solid #b44;color:#ffe3e6;padding:11px 18px;border-radius:9px;font-weight:600;max-width:80vw;box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.camWrap canvas{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;border-radius:0}.camWrap.pointing canvas{cursor:crosshair}.modes{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.modes button{min-height:32px;font-size:13px;padding:0 12px;background:#223444}.modes button.sel{background:var(--blue)}.modes button[data-mode=calibrate].sel{background:#8a5a12}.calbox{background:#2a2112;border:1px solid #6d5220;border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.5;margin-top:8px;display:none}.calbox.show{display:block}.calbox ol{margin:4px 0 6px 18px;padding:0}.calbox .row2{display:flex;gap:6px;margin-top:6px}.calbox button{min-height:30px;font-size:12px;padding:0 10px}.taskbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.taskbar button{min-height:32px;font-size:13px;padding:0 12px}.taskstate{font:600 12px Consolas,monospace;padding:4px 8px;border-radius:6px;background:#0f1821;flex:1;min-width:180px}.aibox{margin-top:10px;background:#101b26;border:1px solid #2f4a63;border-radius:9px;padding:10px}.aibox .row3{display:flex;gap:6px;margin-top:6px}.aibox input{flex:1;padding:8px;background:#0d141c;color:#fff;border:1px solid #3a5163;border-radius:6px;font:14px Segoe UI}.aibox button{min-height:36px;padding:0 14px;font-size:13px}.aibtn{background:#6a3fa0}
+.camsrc{display:flex;gap:6px;align-items:center;margin-left:auto}.camsrc select{background:#0d141c;color:#fff;border:1px solid #3a5163;border-radius:6px;padding:5px 6px;font:13px Segoe UI;max-width:210px}.camsrc button{min-height:30px;font-size:12px;padding:0 10px;background:#223444}
+.aicfg{margin-top:8px;font-size:12px;color:var(--muted)}.aicfg .row3{margin-top:4px}.aicfg input{font:13px Consolas!important}
+.airesult .ans{white-space:pre-wrap;color:var(--text);background:#0d141c;border-radius:6px;padding:8px}.aibtn:hover{background:#7d4dbb}.airesult{margin-top:8px;font-size:13px;line-height:1.5}.airesult .it{display:flex;gap:6px;align-items:center;padding:4px 0;border-top:1px solid #20303f}.airesult .it span{flex:1}.airesult .it button{min-height:28px;font-size:12px;padding:0 9px}.airesult .obs{color:var(--muted);margin-bottom:4px}#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#3a1c22;border:1px solid #b44;color:#ffe3e6;padding:11px 18px;border-radius:9px;font-weight:600;max-width:80vw;box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
 #toast.info{background:#1b3345;border-color:#4a8ac0;color:#e6f4ff}#toast.show{opacity:1}
 @media(max-width:1050px){.layout,header{grid-template-columns:1fr}.maps{grid-template-columns:1fr}.target{grid-template-columns:repeat(3,1fr)}.metrics{grid-template-columns:repeat(2,1fr)}}
 </style></head><body>
@@ -49,26 +52,52 @@ details{margin-top:10px}summary{cursor:pointer;color:var(--muted);font-size:12px
  <button class="enableBtn" id="enableBtn">Enable controls</button>
 </header>
 <div class="layout"><main>
- <section class="panel"><h2>Overhead camera <span id="camPill" class="cap"></span></h2>
+ <section class="panel"><h2>Camera <span id="camPill" class="cap"></span><span class="camsrc"><select id="camSrc" title="Which camera the hub shows"><option value="">camera…</option></select><button id="camScan" title="Look for cameras again">↻ Scan</button><button id="camSnap" title="Save the current frame">📷 Snapshot</button></span></h2>
   <div class="modes" id="camModes"><span class="cap" style="align-self:center">Click on image to:</span>
    <button data-mode="view" class="sel">Just look</button><button data-mode="move_above">Move above</button>
-   <button data-mode="pick">Pick</button><button data-mode="place">Place</button><button data-mode="calibrate">Calibrate</button></div>
+   <button data-mode="pick">Pick</button><button data-mode="place">Place</button><button data-mode="calibrate">Calibrate</button><button data-mode="clawpt" title="Click where the gripper jaws come down in this picture (once)">Set claw point</button></div>
   <div class="camWrap"><img id="cam" alt="" onerror="camOn=false;camErrAt=Date.now();this.removeAttribute('src');$('camMsg').style.display='flex';$('camMsg').textContent='Camera stream interrupted — retrying…'"><canvas id="camOverlay" width="640" height="400"></canvas><div id="camMsg" class="camMsg">Waiting for camera…</div></div>
-  <div id="detections" class="cap" style="margin-top:6px"></div>
+  <div id="detections" class="cap" style="margin-top:6px"></div><div id="liveInfo" class="cap" style="margin-top:2px;color:#7fe3ff"></div>
   <div class="taskbar"><span class="taskstate" id="taskState">Task: idle</span>
-   <button id="homeBtn">Home</button><button id="openBtn">Open</button><button id="closeBtn">Close</button><button id="cancelBtn" style="background:#6d3640">Cancel task</button></div>
+   <button id="lookBtn" title="Camera on the gripper: go to the pose the photos are taken from">👁 Look</button><button id="contSet" title="Jog the gripper to where it should let go over the rover's container, then press this">📦 Save container drop here</button><button id="contTest" title="Move to the container drop and open the gripper">📦 Test drop</button><button id="wakeBtn" title="Turn servo torque back on (after the arm went limp / stopped following)">⚡ Wake arm</button><button id="homeBtn">Home</button><button id="parkBtn" title="Fold into a compact safe pose">Park</button><button id="openBtn">Open</button><button id="closeBtn">Close</button><button id="cancelBtn" style="background:#6d3640">Cancel task</button></div>
+  <div class="aibox"><b>Ask Qwen</b> <span class="pill" id="aiPill">checking…</span>
+   <div class="row3"><input id="aiText" type="text" placeholder="e.g. put the prunes on the coin and the tissues on the paper">
+   <select id="aiStrategy" title="How the autopilot works" style="background:#0d141c;color:#fff;border:1px solid #3a5163;border-radius:6px;font-size:12px"><option value="auto">auto</option><option value="plan">Plan &amp; pick (calibrated)</option><option value="collect">Collect into rover container</option><option value="claw">Dive (gripper cam)</option></select><button class="aibtn" id="aiPilot" style="background:#1e8a5a" title="Qwen drives the arm from the gripper camera, step by step">🤖 Do it</button><button class="aibtn" id="aiAsk" title="Ask a question about the camera image (empty = describe the scene)">Ask</button><button class="aibtn" id="aiFind" title="Draw boxes around matching objects">Find</button><button class="aibtn" id="aiLive" title="Live detection: Qwen looks again and again, the tracker keeps the boxes on the objects at camera speed">📡 Live</button><button class="aibtn" id="aiPlan" title="Plan pick/place steps">Plan</button></div>
+   <div id="pilotBox" style="display:none;margin-top:8px;background:#0d141c;border-radius:6px;padding:8px">
+    <div style="display:flex;gap:8px;align-items:center"><b>🤖 Autopilot</b> <span id="pilotState" class="pill"></span><span id="pilotGoal" class="cap" style="flex:1"></span><button id="pilotStop" style="background:#c0303c;min-height:28px;font-size:12px">■ Stop</button></div>
+    <div id="pilotLog" style="max-height:160px;overflow:auto;font:12px Consolas;line-height:1.5;margin-top:6px"></div></div>
+   <div class="airesult" id="aiResult"></div>
+   <details class="aicfg" id="aiCfg"><summary>Model server settings</summary>
+    <div>Address of the Qwen server (OpenAI-compatible). Tunnel: <code>127.0.0.1:8000</code> · or a public Brev link <code>https://…</code></div>
+    <div class="row3"><input id="aiUrl" type="text" placeholder="http://127.0.0.1:8000/v1"><input id="aiKey" type="text" placeholder="API key (optional)" style="max-width:150px"><button id="aiSave">Save &amp; test</button></div>
+    <div id="aiErr" class="bad" style="margin-top:4px"></div>
+    <div id="tunBox" style="display:none;margin-top:6px"><b>GPU tunnel</b> <span id="tunState"></span> <button id="tunRestart" style="min-height:26px;font-size:12px;padding:0 9px">Restart tunnel</button>
+     <pre id="tunLog" style="margin:4px 0 0;max-height:130px;overflow:auto;background:#0d141c;border-radius:6px;padding:6px;font:11px Consolas;white-space:pre-wrap"></pre></div></details></div>
   <div class="calbox" id="calBox"><b>Camera calibration</b> <span id="calStatus"></span>
-   <ol><li>Put a small mark (tape, coin) on the table where the camera can see it.</li>
-   <li>Jog the arm (pitch about 90°, gripper pointing down) until the gripper tip just touches the mark.</li>
-   <li>Click the mark in the camera image. Repeat for 5-8 marks spread over the whole reachable table area.</li></ol>
-   Four points is the minimum; more points spread wider gives better accuracy. Table height is taken from these points and becomes the arm's safe floor.
-   <div class="row2"><button id="calUndo">Undo last point</button><button id="calClear">Clear all</button></div></div>
+   <div id="lookRow" style="margin:6px 0">Look pose: <b id="lookState">--</b>
+    <button id="lookSet" title="Use the arm's current position as the camera viewpoint">Set look pose here</button>
+    <button id="lookGo">Go to look pose</button>
+    <label class="cap" style="margin-left:6px"><input type="checkbox" id="fixedCam"> camera is NOT on the arm</label></div>
+   <div id="calSteps"></div>
+   <div class="row2"><button id="calTouch" style="background:#1e8a5a">✔ Save touch point <kbd>Enter</kbd></button><button id="calUndo">Undo last point</button><button id="calClear">Clear all</button></div></div>
 </section>
+ <section class="panel" id="scenePanel" style="display:none"><h2>Rover camera · OAK-D <span id="scPill" class="cap"></span></h2>
+  <div class="modes" id="scModes"><span class="cap" style="align-self:center">Click on image to:</span>
+   <button data-sc="view" class="sel">Just look</button><button data-sc="move_above">Move above</button><button data-sc="pick">Pick</button><button data-sc="link">Link: click gripper tip</button></div>
+  <div class="camWrap"><img id="scam" alt="" onerror="scOn=false;this.removeAttribute('src')"><canvas id="scOverlay" width="640" height="400"></canvas><div id="scMsg" class="camMsg">Waiting for OAK-D…</div></div>
+  <div class="cap" id="scInfo" style="margin-top:6px;min-height:18px">Hover over the image to see distances.</div>
+  <div class="row2" style="align-items:center"><button id="scAuto" style="background:#6a3fa0">🔗 Auto-link OAK-D to arm</button><button id="scUndo">Undo</button><button id="scClear">Clear</button>
+   <span id="scLink" class="cap" style="margin-left:6px"></span></div>
+ </section>
  <section class="panel" id="roverPanel"><h2>Rover <span class="cap">arrow keys · controller after pressing Y</span></h2>
   <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap"><div class="drive">
    <button class="f" data-drive="1,0">▲</button><button class="l" data-drive="0,-1">◀</button><button class="h" id="roverHalt">■</button><button class="r" data-drive="0,1">▶</button><button class="b" data-drive="-1,0">▼</button>
   </div><div><div class="cap">Rover speed <b id="roverSpeedV">60%</b></div><input id="roverSpeed" type="range" min="0.2" max="1" step="0.05" value="0.6">
-  <div class="cap" id="roverState" style="margin-top:6px">--</div></div></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button id="routeRec" style="min-height:30px;font-size:12px;padding:0 10px" title="Drive the rover by hand while recording - it can then repeat the trip">⏺ Record route</button><button id="routeGo" style="min-height:30px;font-size:12px;padding:0 10px" title="Drive the recorded route again">▶ Play</button><button id="routeBack" style="min-height:30px;font-size:12px;padding:0 10px" title="Drive the recorded route backwards (return trip)">◀ Back</button></div>
+  <div class="cap" id="routeInfo" style="margin-top:4px">no route yet</div>
+  <div class="cap" id="roverState" style="margin-top:6px">--</div>
+  <div class="cap" id="roverLast" style="margin-top:4px;font-family:Consolas,monospace">last sent: --</div>
+  <div class="cap" style="margin-top:6px">Address <input id="roverUrl" type="text" style="width:150px;padding:4px 6px;background:#0d141c;color:#fff;border:1px solid #3a5163;border-radius:5px;font:12px Consolas"> <button id="roverUrlSet" style="min-height:26px;padding:0 8px;font-size:12px">Set</button></div></div></div>
   <div class="locked">STOPPED — press Enable</div></section>
  <section class="panel"><h2>Activity</h2><div id="log" class="log"></div></section>
 </main><aside>
@@ -80,7 +109,7 @@ details{margin-top:10px}summary{cursor:pointer;color:var(--muted);font-size:12px
     <div class="cap" style="margin-top:4px">Side view: blue = reachable at the current wrist pitch. Click to set reach + height.</div></div>
   </div>
   <div class="toolbar">
-   <span class="cap">Speed <b id="speedV">50%</b></span><input id="speed" type="range" min="0.1" max="1" step="0.05" value="0.5">
+   <span class="cap">Speed <b id="speedV">80%</b></span><input id="speed" type="range" min="0.1" max="1" step="0.05" value="0.8">
    <span class="seg" id="frameSeg"><button data-frame="cartesian" class="sel">XYZ</button><button data-frame="polar">Reach / swing</button></span>
    <span class="cap" id="inputSrc">Input: none</span>
   </div>
@@ -124,7 +153,7 @@ function note(msg,kind='info'){notes.unshift({time:Date.now()/1000,source:'dashb
 function fail(msg){note(msg,'warning');toast(msg)}
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 // ------------------------------------------------------------------ safety
-async function stopAll(reason){keys.clear();held.jog=held.drive=null;try{await post('/api/stop',{reason})}catch(e){fail(e.message)}refresh()}
+async function stopAll(reason){if(typeof route!=='undefined'){route.play=null;if(route.rec)$('routeRec').click()}keys.clear();held.jog=held.drive=null;try{roverDirect(0,0,true)}catch(_){}try{await post('/api/stop',{reason})}catch(e){fail(e.message)}refresh()}
 async function enableControls(){try{await post('/api/enable',{});toast('Controls enabled','info')}catch(e){fail(e.message)}refresh()}
 $('stopBtn').onclick=()=>stopAll('Dashboard STOP');$('enableBtn').onclick=enableControls;
 // ------------------------------------------------------------------ input
@@ -152,15 +181,42 @@ function tick(){const pad=readPad();
    .then(()=>{lastJogNonzero=nonzero}).catch(e=>{fail(e.message);keys.clear();held.jog=null;lastJogNonzero=false}).finally(()=>jogBusy=false)}
  let d=[k('ArrowUp','ArrowDown'),k('ArrowRight','ArrowLeft')].map(x=>x*+$('roverSpeed').value);
  if(held.drive)d=held.drive.map(x=>x*+$('roverSpeed').value);if(pad&&pad.drive.some(x=>x))d=pad.drive;
+ if(route.play){if(d.some(x=>x)||!enabled){route.play=null;routeUI();toast('Route replay stopped')}else d=routeSample()}
+ if(route.rec&&enabled){const t=Math.round(performance.now()-route.t0),L=route.pts[route.pts.length-1];if(!L||L[1]!==+d[0].toFixed(3)||L[2]!==+d[1].toFixed(3))route.pts.push([t,+d[0].toFixed(3),+d[1].toFixed(3)])}
  const dn=d.some(x=>x),now=performance.now();
  if(enabled&&!driveBusy&&((dn&&now-lastDriveSent>120)||(!dn&&lastDriveNonzero))){driveBusy=true;lastDriveSent=now;
+  if(roverDirectMode()){ // same way the rover's own web page drives it: browser -> rover
+   roverDirect(d[0],d[1]);const moving=dn||rvCur.some(v=>v!==0);lastDriveNonzero=moving;setTimeout(()=>driveBusy=false,120);return}
   post('/api/action',{source:'human',action:'drive',linear:d[0],turn:d[1],duration_ms:300,request_id:'dash'}).then(()=>lastDriveNonzero=dn)
    .catch(e=>{fail(e.message);lastDriveNonzero=false}).finally(()=>driveBusy=false)}}
+function roverDirectMode(){return !!(S&&S.rover&&!S.rover.connected&&/^https?:\/\/[^/]+/.test(S.rover.url||''))}
+// smooth start/stop in direct mode too (same rates as the hub)
+let rvCur=[0,0],rvLast=performance.now(),roverLastDirect='';
+function roverRamp(want,hard){const now=performance.now(),dt=Math.min(.12,(now-rvLast)/1000);rvLast=now;if(hard){rvCur=[0,0];return rvCur}
+ const top=Math.max(1,(S&&S.rover.max_speed)||1800);rvCur=rvCur.map((c,i)=>{const w=want[i],brake=Math.abs(w)<Math.abs(c)||c*w<0,st=(brake?top/0.3:top/0.6)*dt;return Math.round(c+Math.max(-st,Math.min(st,w-c)))});return rvCur}
+function roverDirect(l,t,hard){const u=S&&S.rover&&S.rover.url;if(!u)return;const m=Math.min(1800,S.rover.max_speed||1800),cl=v=>Math.max(-1,Math.min(1,v));
+ const [L,R]=roverRamp([cl(l+t)*m,cl(l-t)*m],hard);
+ const cmd=JSON.stringify({T:1,L,R});roverLastDirect=`${cmd} (browser → rover)`;
+ fetch(u+'/js?json='+encodeURIComponent(cmd),{mode:'no-cors',cache:'no-store'}).catch(()=>{})}
+// ---- teach & repeat: record a hand-driven trip, replay it (or drive it backwards to come back)
+const route={rec:false,t0:0,pts:[],play:null};
+try{route.pts=JSON.parse(localStorage.getItem('roverRoute')||'[]')}catch(_){}
+function routeUI(){const b=$('routeRec');if(!b)return;b.textContent=route.rec?'⏹ Stop recording':'⏺ Record route';b.style.background=route.rec?'#c0303c':'';
+ const dur=route.pts.length?route.pts[route.pts.length-1][0]/1000:0;
+ $('routeInfo').textContent=route.play?`replaying${route.play.rev?' backwards':''}… ${((performance.now()-route.play.t0)/1000).toFixed(1)} / ${dur.toFixed(1)} s (any drive key or STOP cancels)`:route.rec?`recording… ${((performance.now()-route.t0)/1000).toFixed(1)} s — drive with the arrow keys`:(route.pts.length?`route saved: ${dur.toFixed(1)} s`:'no route yet')}
+$('routeRec').onclick=()=>{if(route.rec){route.rec=false;route.pts.push([Math.round(performance.now()-route.t0),0,0]);try{localStorage.setItem('roverRoute',JSON.stringify(route.pts))}catch(_){}toast('Route saved','info')}
+ else{if(!enabled){toast('Controls are stopped — press Enable first');return}route.play=null;route.rec=true;route.t0=performance.now();route.pts=[[0,0,0]]}routeUI()};
+function routePlay(rev){if(route.pts.length<2){toast('Record a route first');return}if(!enabled){toast('Controls are stopped — press Enable first');return}route.rec=false;route.play={t0:performance.now(),rev};routeUI()}
+$('routeGo').onclick=()=>routePlay(false);$('routeBack').onclick=()=>routePlay(true);
+function routeSample(){const p=route.play,pts=route.pts,T=pts[pts.length-1][0];let t=performance.now()-p.t0;
+ if(t>T){route.play=null;routeUI();toast('Route finished','info');return[0,0]}
+ if(p.rev)t=T-t;let i=pts.findIndex(q=>q[0]>t);const q=i<0?pts[pts.length-1]:pts[Math.max(0,i-1)];return p.rev?[-q[1],-q[2]]:[q[1],q[2]]}
+setInterval(routeUI,250);
 setInterval(tick,50);
 const isTextField=el=>el&&el.tagName==='INPUT'&&(el.type==='number'||el.type==='text');
 document.addEventListener('keydown',e=>{
- if(e.code==='Space'||e.code==='Escape'){e.preventDefault();if(!e.repeat)stopAll('Keyboard STOP');return}
- if(isTextField(document.activeElement)){if(e.code==='Enter'){e.preventDefault();goTarget()}return}
+ if(e.code==='Escape'||(e.code==='Space'&&!isTextField(document.activeElement))){e.preventDefault();if(!e.repeat)stopAll('Keyboard STOP');return} // Space types normally in text boxes
+ if(isTextField(document.activeElement)){if(e.code==='Enter'&&!['aiText','roverUrl','dropName'].includes(document.activeElement.id)){e.preventDefault();goTarget()}return}
  if(e.code==='BracketLeft'||e.code==='BracketRight'){const s=$('speed');s.value=Math.max(.1,Math.min(1,+s.value+(e.code==='BracketRight'?.1:-.1)));s.oninput();return}
  if(e.code.startsWith('Arrow')||e.code.startsWith('Key'))e.preventDefault();keys.add(e.code)});
 document.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')e.preventDefault()});
@@ -174,10 +230,12 @@ for(const el of document.querySelectorAll('[data-jog]')){const[i,s]=el.dataset.j
 for(const el of document.querySelectorAll('[data-drive]')){const d=el.dataset.drive.split(',').map(Number);
  el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);held.drive=d;el.classList.add('on')});
  ['pointerup','pointercancel','lostpointercapture'].forEach(n=>el.addEventListener(n,()=>{held.drive=null;el.classList.remove('on')}))}
-$('roverHalt').onclick=()=>{held.drive=null;if(enabled)post('/api/action',{source:'human',action:'drive',linear:0,turn:0,duration_ms:100,request_id:'dash'}).catch(e=>fail(e.message))};
+$('roverHalt').onclick=()=>{held.drive=null;try{roverDirect(0,0,true)}catch(_){}if(enabled)post('/api/action',{source:'human',action:'drive',linear:0,turn:0,duration_ms:100,request_id:'dash'}).catch(e=>fail(e.message))};
 for(const el of document.querySelectorAll('[data-frame]'))el.onclick=()=>{frame=el.dataset.frame;document.querySelectorAll('[data-frame]').forEach(b=>b.classList.toggle('sel',b===el))};
 $('speed').oninput=()=>$('speedV').textContent=Math.round($('speed').value*100)+'%';
 $('roverSpeed').oninput=()=>$('roverSpeedV').textContent=Math.round($('roverSpeed').value*100)+'%';
+$('roverUrlSet').onclick=()=>{$('roverUrl').blur();post('/api/rover/url',{url:$('roverUrl').value}).then(()=>toast('Rover address saved — arrow keys drive it','info')).catch(e=>fail(e.message))};
+$('roverUrl').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();$('roverUrlSet').click()}});
 window.addEventListener('gamepadconnected',e=>toast('Controller connected: '+e.gamepad.id.slice(0,40),'info'));
 // ------------------------------------------------------------------ targets
 async function goto(t,label){if(!enabled){toast('Controls are stopped — press Enable first');return}
@@ -208,6 +266,7 @@ function draw(){const W=ws(),a=S&&S.arm,P=a&&a.pose,Tg=a&&a.target,G=a&&a.goal;
  let c=topC.getContext('2d'),t=topXf();c.clearRect(0,0,topC.width,topC.height);
  c.fillStyle='rgba(70,150,215,.16)';const bands=(a&&a.reach_here)||[[W.arm_reach_min_mm,W.arm_reach_max_mm]];for(const[r0,r1]of bands){c.beginPath();c.arc(t.cx,t.cy,r1*t.sc,0,2*Math.PI);c.moveTo(t.cx+r0*t.sc,t.cy);c.arc(t.cx,t.cy,r0*t.sc,0,2*Math.PI);c.fill('evenodd')}
  c.strokeStyle='#223242';c.lineWidth=1;for(let r=100;r<W.arm_reach_max_mm;r+=100){c.beginPath();c.arc(t.cx,t.cy,r*t.sc,0,2*Math.PI);c.stroke()}
+ c.fillStyle='rgba(180,60,70,.35)';c.beginPath();c.moveTo(t.cx,t.cy);c.arc(t.cx,t.cy,W.arm_reach_max_mm*t.sc,Math.PI/2-5*Math.PI/180,Math.PI/2+5*Math.PI/180);c.closePath();c.fill();c.fillStyle='#c77';c.fillText('base limit',t.cx+8,topC.height-14);
  c.beginPath();c.moveTo(t.cx,8);c.lineTo(t.cx,topC.height-8);c.moveTo(8,t.cy);c.lineTo(topC.width-8,t.cy);c.stroke();
  c.fillStyle='#6f8497';c.font='11px Consolas';c.fillText('+X fwd',t.cx+5,16);c.fillText('+Y',10,t.cy-5);for(let r=100;r<W.arm_reach_max_mm;r+=100)c.fillText(r,t.cx+3,t.cy-r*t.sc+12);
  c.fillStyle='#3d5569';c.fillRect(t.cx-10,t.cy-10,20,20);
@@ -245,13 +304,63 @@ sideC.onclick=e=>{const pt=sidePoint(e);if(!pt)return;const p=pt.p;goto({x_mm:Ma
 let camOn=false,camErrAt=0;function setCam(on,msg){if(on&&!camOn&&Date.now()-camErrAt<3000)return;if(on&&!camOn){$('cam').src='/camera.mjpg?'+Date.now()}if(!on&&camOn){$('cam').removeAttribute('src')}camOn=on;
  $('camMsg').style.display=on?'none':'flex';if(msg)$('camMsg').textContent=msg}
 
+// ------------------------------------------------------------------ OAK-D scene camera
+let scOn=false,scMode='view',scHover=null,scHoverInfo=null,scHoverAt=0;const sov=$('scOverlay');
+function setScene(on,msg){if(on&&!scOn){$('scam').src='/camera.mjpg?cam=scene&'+Date.now()}if(!on&&scOn){$('scam').removeAttribute('src')}scOn=on;$('scMsg').style.display=on?'none':'flex';if(msg)$('scMsg').textContent=msg}
+for(const b of document.querySelectorAll('[data-sc]'))b.onclick=()=>{scMode=b.dataset.sc;document.querySelectorAll('[data-sc]').forEach(x=>x.classList.toggle('sel',x===b));
+ if((scMode==='pick'||scMode==='move_above')&&!(S&&S.scene.link&&S.scene.link.ready))toast('Link the OAK-D to the arm first (🔗 Auto-link)')};
+function scRect(){const size=S&&S.scene&&S.scene.size||[640,400],W=sov.clientWidth,H=sov.clientHeight,sc=Math.min(W/size[0],H/size[1]);return{size,sc,ox:(W-size[0]*sc)/2,oy:(H-size[1]*sc)/2}}
+function scPixel(e){const r=sov.getBoundingClientRect(),R=scRect(),u=(e.clientX-r.left-R.ox)/R.sc,v=(e.clientY-r.top-R.oy)/R.sc;if(u<0||v<0||u>=R.size[0]||v>=R.size[1])return null;return[Math.round(u),Math.round(v)]}
+async function scPoint(px){return fetch(`/api/scene/point?u=${px[0]}&v=${px[1]}`).then(r=>r.json())}
+sov.onmousemove=async e=>{scHover=scPixel(e);if(!scHover||Date.now()-scHoverAt<150)return;scHoverAt=Date.now();try{const p=await scPoint(scHover);scHoverInfo=p;
+ $('scInfo').textContent=p.cam?`${(p.distance_mm/10).toFixed(0)} cm away`+(p.arm?` · arm x ${p.arm[0]}, y ${p.arm[1]}, z ${p.arm[2]} mm`:' · (link the OAK-D to see arm coordinates)'):'no depth here'}catch(_){}};
+sov.onmouseleave=()=>{scHover=null};
+sov.onclick=async e=>{const px=scPixel(e);if(!px||scMode==='view')return;
+ if(scMode==='link'){try{const st=await post('/api/scene/cal/point',{pixel:px});toast(`Link point ${st.points} saved`+(st.ready?` — error ${st.error_mm} mm`:` — ${Math.max(0,4-st.points)} more needed`)+'. Move the arm somewhere else and click the tip again.','info')}catch(err){fail(err.message)}return}
+ if(!enabled){toast('Controls are stopped — press Enable first');return}
+ try{const p=await scPoint(px);if(!p.arm)throw Error(p.cam?'Link the OAK-D to the arm first':'No depth at that spot');
+  await post('/api/task',{source:'human',task:scMode,xyz:p.arm,speed:+$('speed').value});note(scMode+' at OAK-D point '+p.arm.join(', '))}catch(err){fail(err.message)}};
+$('scAuto').onclick=async()=>{if(!enabled){toast('Controls are stopped — press Enable first');return}
+ if(!confirm('The arm will move its gripper to several spots in front of the rover so the OAK-D can see it (about 20-30 s). Keep the area in front clear. Start?'))return;
+ try{await post('/api/scene/cal/auto',{});toast('Auto-link running — Space stops it','info')}catch(e){fail(e.message)}};
+$('scUndo').onclick=()=>post('/api/scene/cal/undo',{}).catch(e=>fail(e.message));
+$('scClear').onclick=()=>{if(confirm('Delete the OAK-D link points?'))post('/api/scene/cal/clear',{}).catch(e=>fail(e.message))};
+function drawScene(){const c=sov.getContext('2d');if(sov.width!==sov.clientWidth||sov.height!==sov.clientHeight){sov.width=sov.clientWidth;sov.height=sov.clientHeight}
+ c.clearRect(0,0,sov.width,sov.height);if(!S||!S.scene||!S.scene.enabled)return;const R=scRect(),P=(u,v)=>[R.ox+u*R.sc,R.oy+v*R.sc],sc=S.scene;c.font='12px Consolas';
+ (sc.link.pixels||[]).forEach((p,i)=>{if(!p)return;const[x,y]=P(...p),bad=sc.link.ready&&!sc.link.used.includes(i);dot(c,x,y,4,bad?'#ff5c6a':'#ffcf6b')});
+ if(sc.tip_px){const[x,y]=P(...sc.tip_px);dot(c,x,y,10,null,'#6fe0a6',2);c.fillStyle='#6fe0a6';c.fillText('gripper (predicted)',x+12,y-8)}
+ const pt=S.pilot&&S.pilot.scene_target;if(pt&&pt.bbox&&(S.pilot.running||S.pilot.log.length)){const[x1,y1]=P(pt.bbox[0],pt.bbox[1]),[x2,y2]=P(pt.bbox[2],pt.bbox[3]);c.strokeStyle='#ffcf6b';c.lineWidth=2.5;c.strokeRect(x1,y1,x2-x1,y2-y1);c.fillStyle='#ffcf6b';c.fillText('target',x1,Math.max(12,y1-4))}
+ if(scHover&&scMode!=='view'){const[x,y]=P(...scHover);c.strokeStyle='#8fd0ff';c.lineWidth=1.5;c.beginPath();c.moveTo(x-12,y);c.lineTo(x+12,y);c.moveTo(x,y-12);c.lineTo(x,y+12);c.stroke()}}
+setInterval(drawScene,100);
+function showScene(sc){if(!sc||!sc.enabled){$('scenePanel').style.display='none';return}$('scenePanel').style.display='';
+ setScene(sc.connected,sc.connected?'':'OAK-D not available: '+(sc.error||'waiting'));$('scPill').textContent=sc.connected?(sc.depth?'colour + depth':'colour (no depth yet)'):'offline';
+ const l=sc.link,a=sc.autocal;$('scLink').innerHTML=(a.running?'<span class="warn">'+esc(a.message)+'</span>':(l.ready?`<span class="ok">✔ linked to arm</span> (${l.used.length}/${l.points} points, error ${l.error_mm} mm)`:`<span class="warn">not linked yet</span> (${l.points} points)`)+(a.message&&!a.running?' · '+esc(a.message):''));
+ $('scAuto').disabled=a.running}
+
+// camera picker
+async function camSources(scan){const sel=$('camSrc');if(scan){$('camScan').disabled=true;$('camScan').textContent='Scanning…'}
+ try{const r=await fetch('/api/camera/sources'+(scan?'?scan=1':'')).then(r=>r.json());
+  const opts=r.sources.map(o=>`<option value="${esc(o.source)}">${esc(o.label)}</option>`);
+  if(!r.sources.some(o=>o.source===r.current))opts.unshift(`<option value="${esc(r.current)}">${esc(r.current==='auto'?'Auto':r.current)} (not found)</option>`);
+  opts.push('<option value="__url">Network camera URL…</option>');sel.innerHTML=opts.join('');sel.value=r.current;
+  if(scan)toast(r.sources.length?`Found ${r.sources.length} camera(s)`:'No cameras found — check the USB cable',r.sources.length?'info':'error')}
+ catch(e){if(scan)fail(e.message)}finally{$('camScan').disabled=false;$('camScan').textContent='↻ Scan'}}
+$('camSrc').onchange=async()=>{const sel=$('camSrc');let source=sel.value;sel.blur();
+ if(source==='__url'){source=prompt('Camera stream address, e.g. http://192.168.1.50:8080/video (phone IP Webcam app)');if(!source){camSources();return}}
+ camOn=false;$('cam').removeAttribute('src');$('camMsg').style.display='flex';$('camMsg').textContent='Switching camera…';
+ try{await post('/api/camera/source',{source});toast('Camera switched','info')}catch(e){fail(e.message)}camSources()};
+$('camScan').onclick=()=>camSources(true);
+$('camSnap').onclick=()=>{const a=document.createElement('a');a.href='/api/frame.jpg?'+Date.now();a.download='camera_'+new Date().toISOString().slice(0,19).replace(/:/g,'-')+'.jpg';a.click()};
+camSources();
+
 // ------------------------------------------------------------------ camera click modes + calibration
 let camMode='view',camHover=null;
 const ov=$('camOverlay');
 for(const b of document.querySelectorAll('[data-mode]'))b.onclick=()=>{camMode=b.dataset.mode;
  document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('sel',x===b));
  $('calBox').classList.toggle('show',camMode==='calibrate');document.querySelector('.camWrap').classList.toggle('pointing',camMode!=='view');
- if(camMode!=='view'&&camMode!=='calibrate'&&!(S&&S.calibration.ready))toast('Calibrate the camera first (Calibrate button)')};
+ if(camMode==='clawpt')toast('Point the gripper straight down, then click the spot in the picture directly below the jaws','info');
+ else if(camMode!=='view'&&camMode!=='calibrate'&&!(S&&S.calibration.ready))toast('Calibrate the camera first (Calibrate button)')};
 function imgRect(){const size=S&&S.camera.size||[640,400],W=ov.clientWidth,H=ov.clientHeight,sc=Math.min(W/size[0],H/size[1]);
  return{size,sc,ox:(W-size[0]*sc)/2,oy:(H-size[1]*sc)/2,W,H}}
 function camPixel(e){const r=ov.getBoundingClientRect(),R=imgRect(),u=(e.clientX-r.left-R.ox)/R.sc,v=(e.clientY-r.top-R.oy)/R.sc;
@@ -261,23 +370,60 @@ function invH(h){const[a,b,c]=h[0],[d,e,f]=h[1],[g,i,k]=h[2],det=a*(e*k-f*i)-b*(
  return[[(e*k-f*i)/det,-(b*k-c*i)/det,(b*f-c*e)/det],[-(d*k-f*g)/det,(a*k-c*g)/det,-(a*f-c*d)/det],[(d*i-e*g)/det,-(a*i-b*g)/det,(a*e-b*d)/det]]}
 ov.onmousemove=e=>{camHover=camPixel(e)};ov.onmouseleave=()=>camHover=null;
 ov.onclick=async e=>{const px=camPixel(e);if(!px||camMode==='view')return;
+ if(camMode==='dropspot'){try{const nm=($('dropName').value||'coin').trim();const r=await post('/api/pilot/drop_spot',{pixel:px,name:nm});toast(`Drop spot "${r.name}" saved (arm ${r.drop_xy.join(', ')} mm)`,'info')}catch(err){fail(err.message)}return}
+ if(camMode==='clawpt'){try{await post('/api/pilot/claw_point',{pixel:px});toast('Claw point saved — the autopilot centres objects on this spot','info')}catch(err){fail(err.message)}return}
  if(camMode==='calibrate'){try{const st=await post('/api/calibration/point',{pixel:px});
-   toast(`Point ${st.points.length} saved`+(st.ready?` — fit error ${st.error_mm} mm`:` — ${4-st.points.length} more needed`),'info')}catch(err){fail(err.message)}return}
+   if(st.pending){toast('Spot saved. Now lower the gripper tip onto it and press ✔ Save touch point (Enter)','info')}else
+   toast(`Point ${st.points.length} saved`+(st.ready?` — error ${st.error_mm} mm, using ${st.used.length}/${st.points.length} points`+(st.used.includes(st.points.length-1)?'':' (this click did not fit — ignored)'):` — ${3-st.points.length} more needed`),'info')}catch(err){fail(err.message)}return}
  if(!enabled){toast('Controls are stopped — press Enable first');return}
  try{await post('/api/task',{source:'human',task:camMode,pixel:px,speed:+$('speed').value});note(camMode+' at pixel '+px.join(', '))}catch(err){fail(err.message)}};
+const LOOK_STEPS=`<ol><li>Raise the arm so the camera sees the whole work area, gripper out of view. Press <b>Set look pose here</b> (once).</li>
+<li>Put a coin on the table. At the look pose, <b>click the centre of the coin</b> in the image.</li>
+<li>Jog the arm down until the gripper tip touches the centre of the coin, then press <b>✔ Save touch point</b> (or Enter).</li>
+<li>Press <b>Go to look pose</b>, move the coin somewhere else, repeat. 6 points spread over the table is plenty.</li></ol>`;
+const FIXED_STEPS=`<ol><li>Put a small mark (coin) on the table where the camera can see it.</li><li>Jog the arm (gripper pointing down) until the tip just touches the mark.</li><li>Click the mark in the camera image. Repeat for 5-8 marks spread over the table.</li></ol>`;
+$('lookSet').onclick=async()=>{const cs=S&&S.calibration;if(cs&&cs.points.length&&!confirm('Setting a new look pose deletes the '+cs.points.length+' calibration points (they were taken from a different viewpoint). Continue?'))return;
+ try{await post('/api/calibration/look',{});toast('Look pose saved - now click a coin in the image','info')}catch(e){fail(e.message)}};
+$('lookGo').onclick=$('lookBtn').onclick=()=>{if(!enabled){toast('Controls are stopped — press Enable first');return}post('/api/task',{source:'human',task:'look'}).catch(e=>fail(e.message))};
+$('fixedCam').onchange=async()=>{if(!$('fixedCam').checked){$('fixedCam').checked=!!(S&&!S.calibration.look_pose);toast('Use “Set look pose here” for a camera on the gripper','info');return}
+ if(!confirm('Camera fixed on a stand (not on the arm)? This removes the look pose and the calibration points.')){$('fixedCam').checked=false;return}
+ try{await post('/api/calibration/look',{clear:true})}catch(e){fail(e.message)}};
+async function calTouch(){try{const st=await post('/api/calibration/touch',{});const last=st.points.length-1;
+ toast(`Point ${st.points.length} saved`+(st.ready?` — error ${st.error_mm} mm`+(st.used.includes(last)?'':' (this one did not fit — ignored)'):` — ${3-st.points.length} more needed`)+'. Go back to the look pose for the next one.','info')}catch(e){fail(e.message)}}
+$('calTouch').onclick=calTouch;
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&camMode==='calibrate'&&!isTextField(document.activeElement)&&S&&S.calibration.pending){e.preventDefault();calTouch()}});
 $('calUndo').onclick=()=>post('/api/calibration/undo',{}).then(()=>toast('Removed last point','info')).catch(e=>fail(e.message));
 $('calClear').onclick=()=>{if(confirm('Delete all calibration points?'))post('/api/calibration/clear',{}).then(()=>toast('Calibration cleared','info')).catch(e=>fail(e.message))};
 const taskBtn=(id,body)=>$(id).onclick=()=>{if(!enabled){toast('Controls are stopped — press Enable first');return}post('/api/task',{source:'human',...body}).catch(e=>fail(e.message))};
-taskBtn('homeBtn',{task:'home'});taskBtn('openBtn',{task:'gripper',deg:60});taskBtn('closeBtn',{task:'gripper',deg:0});
+taskBtn('homeBtn',{task:'home'});taskBtn('parkBtn',{task:'park'});taskBtn('openBtn',{task:'gripper',deg:60});taskBtn('closeBtn',{task:'gripper',deg:0});
+$('contSet').onclick=async()=>{if(!confirm('Save the arm\'s CURRENT position as the container drop point (where the gripper lets go over the rover\'s box)?'))return;
+ try{const r=await post('/api/pilot/container',{});toast('Container drop saved: '+r.container_pose.map(v=>v.toFixed(0)).join(', '),'info')}catch(e){fail(e.message)}};
+$('contTest').onclick=async()=>{if(!enabled){toast('Controls are stopped — press Enable first');return}try{await post('/api/pilot/container',{test:true});toast('Going to the container drop','info')}catch(e){fail(e.message)}};
+$('wakeBtn').onclick=()=>post('/api/arm/wake',{}).then(()=>toast('Servo torque on — try moving the arm','info')).catch(e=>fail(e.message));
 $('cancelBtn').onclick=()=>post('/api/task/cancel',{}).catch(e=>fail(e.message));
 function drawOverlay(){const c=ov.getContext('2d');if(ov.width!==ov.clientWidth||ov.height!==ov.clientHeight){ov.width=ov.clientWidth;ov.height=ov.clientHeight}
  c.clearRect(0,0,ov.width,ov.height);if(!S)return;const R=imgRect(),P=(u,v)=>[R.ox+u*R.sc,R.oy+v*R.sc],cal=S.calibration;
  c.font='12px Consolas';
- cal.points.forEach((p,i)=>{const[x,y]=P(...p.px);c.strokeStyle='#ffcf6b';c.lineWidth=2;c.beginPath();c.moveTo(x-6,y);c.lineTo(x+6,y);c.moveTo(x,y-6);c.lineTo(x,y+6);c.stroke();c.fillStyle='#ffcf6b';c.fillText(i+1,x+6,y-6)});
+ cal.points.forEach((p,i)=>{const[x,y]=P(...p.px),bad=cal.ready&&cal.used&&!cal.used.includes(i);c.strokeStyle=bad?'#ff5c6a':'#ffcf6b';c.lineWidth=2;c.beginPath();c.moveTo(x-6,y);c.lineTo(x+6,y);c.moveTo(x,y-6);c.lineTo(x,y+6);c.stroke();c.fillStyle=bad?'#ff5c6a':'#ffcf6b';c.fillText(i+1,x+6,y-6)});
  if(cal.ready&&cal.h_inv&&S.arm.reach_here){ // reach ring projected into the image
   const h=cal.h_inv;c.strokeStyle='rgba(111,224,166,.55)';c.setLineDash([6,5]);c.lineWidth=1.5;
   for(const[r0,r1]of S.arm.reach_here)for(const r of[r0,r1]){c.beginPath();for(let a=0;a<=64;a++){const t=a/64*2*Math.PI,[u,v]=applyH(h,r*Math.cos(t),r*Math.sin(t)),[x,y]=P(u,v);a?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()}
   c.setLineDash([])}
+ const LV=S.live,LT=(LV&&LV.tracks)||[];
+ LT.forEach(t=>{const[x1,y1]=P(t.bbox[0],t.bbox[1]),[x2,y2]=P(t.bbox[2],t.bbox[3]),col=t.lost?'#8a97a3':'#4fe3ff';c.strokeStyle=col;c.lineWidth=t.lost?1.5:2.5;if(t.lost||t.static)c.setLineDash([6,4]);c.strokeRect(x1,y1,x2-x1,y2-y1);c.setLineDash([]);
+  const lab=`#${t.id} ${t.label}`+(t.static?'':` ${Math.round(t.score*100)}%`)+(t.lost?' (lost)':'');c.fillStyle='rgba(0,0,0,.55)';c.fillRect(x1,Math.max(0,y1-16),c.measureText(lab).width+8,15);c.fillStyle=col;c.fillText(lab,x1+4,Math.max(12,y1-4))});
+ if(LV&&LV.zone&&!(S.pilot&&S.pilot.running)){const pg=LV.zone;c.strokeStyle='rgba(255,225,77,.7)';c.lineWidth=1.5;c.setLineDash([4,4]);c.beginPath();pg.forEach((q,i)=>{const[x,y]=P(q[0],q[1]);i?c.lineTo(x,y):c.moveTo(x,y)});c.closePath();c.stroke();c.setLineDash([])}
+ if(!LT.length)aiItems.forEach((o,i)=>{if(!o.bbox)return;const[x1,y1]=P(o.bbox[0],o.bbox[1]),[x2,y2]=P(o.bbox[2],o.bbox[3]),col=o.action==='place'?'#6fe0a6':o.action==='pick'?'#ffcf6b':'#c9a3ff';
+  c.strokeStyle=col;c.lineWidth=2;c.strokeRect(x1,y1,x2-x1,y2-y1);const[cx,cy]=P(...o.pixel);dot(c,cx,cy,3,col);c.fillStyle=col;c.fillText((i+1)+' '+(o.action!=='find'?o.action+' ':'')+o.label,x1,Math.max(12,y1-4))});
+ if(S.pilot&&S.pilot.zones&&S.pilot.zones.length>1&&(S.pilot.running||S.pilot.log.length)){S.pilot.zones.forEach(z=>{const pg=z.poly;c.strokeStyle='#ffe14d';c.lineWidth=2;c.setLineDash([6,4]);c.beginPath();pg.forEach((q,i)=>{const[x,y]=P(q[0],q[1]);i?c.lineTo(x,y):c.moveTo(x,y)});c.closePath();c.stroke();c.setLineDash([])})}
+ else if(S.pilot&&S.pilot.zone_poly&&(S.pilot.running||S.pilot.log.length)){const pg=S.pilot.zone_poly;c.strokeStyle='#ffe14d';c.lineWidth=3;c.setLineDash([8,5]);c.beginPath();pg.forEach((q,i)=>{const[x,y]=P(q[0],q[1]);i?c.lineTo(x,y):c.moveTo(x,y)});c.closePath();c.stroke();c.setLineDash([]);const[x0,y0]=P(pg[0][0],pg[0][1]);c.fillStyle='#ffe14d';c.fillText('drop zone',x0+4,y0-6)}
+ const pl=S.pilot;if(pl&&(pl.running||pl.log.length)){if(pl.target&&pl.target.bbox){const[x1,y1]=P(pl.target.bbox[0],pl.target.bbox[1]),[x2,y2]=P(pl.target.bbox[2],pl.target.bbox[3]);c.strokeStyle='#ffcf6b';c.lineWidth=2.5;c.strokeRect(x1,y1,x2-x1,y2-y1);c.fillStyle='#ffcf6b';c.fillText('target',x1,Math.max(12,y1-4))}
+  if(pl.gripper&&pl.gripper.px){const[x,y]=P(...pl.gripper.px);c.strokeStyle='#6fe0a6';c.lineWidth=2;c.beginPath();c.arc(x,y,8,0,7);c.stroke();c.fillStyle='#6fe0a6';c.fillText('jaws',x+10,y+4)}
+  if(pl.target&&pl.gripper&&pl.gripper.px){const[a,b]=P(...pl.target.px),[x,y]=P(...pl.gripper.px);c.setLineDash([4,4]);c.strokeStyle='#8fd0ff';c.beginPath();c.moveTo(a,b);c.lineTo(x,y);c.stroke();c.setLineDash([])}}
+ if(S.claw_point&&(camMode==='clawpt'||(S.pilot&&S.pilot.running))){const R2=imgRect(),[x,y]=P(S.claw_point[0]*R2.size[0],S.claw_point[1]*R2.size[1]);c.strokeStyle='#ff8fe0';c.lineWidth=2;c.beginPath();c.arc(x,y,12,0,7);c.moveTo(x-18,y);c.lineTo(x+18,y);c.moveTo(x,y-18);c.lineTo(x,y+18);c.stroke();c.fillStyle='#ff8fe0';c.fillText('claw',x+14,y-12)}
+ ([]).forEach((d,i)=>{const[x,y]=P(...d.px),col=['#ff9d3b','#6fe0a6','#c9a3ff','#8fd0ff'][i%4];c.strokeStyle=col;c.lineWidth=3;c.beginPath();c.arc(x,y,14,0,7);c.moveTo(x-22,y);c.lineTo(x+22,y);c.moveTo(x,y-22);c.lineTo(x,y+22);c.stroke();c.font='bold 13px Consolas';c.fillStyle=col;c.fillText('→ '+d.name,x+16,y-14);c.font='12px Consolas'});
+ const hd=S.pilot&&S.pilot.held;if(hd&&S.pilot.running){const lab='✋ in gripper: '+hd.label+(hd.checking?' …':'');c.font='bold 15px Consolas';const w=c.measureText(lab).width+14,x0=(ov.width-w)/2,y0=ov.height-34;c.fillStyle='rgba(0,0,0,.7)';c.fillRect(x0,y0,w,24);c.fillStyle='#6fe0a6';c.fillText(lab,x0+7,y0+17);c.font='12px Consolas'}
+ if(cal.pending){const[x,y]=P(...cal.pending);c.strokeStyle='#6fe0a6';c.lineWidth=2;c.beginPath();c.arc(x,y,10,0,7);c.moveTo(x-16,y);c.lineTo(x+16,y);c.moveTo(x,y-16);c.lineTo(x,y+16);c.stroke();c.fillStyle='#6fe0a6';c.fillText('touch here',x+14,y-12)}
  if(cal.arm_pixel){const[x,y]=P(...cal.arm_pixel);dot(c,x,y,9,null,'#6fe0a6',3);dot(c,x,y,3,'#6fe0a6')}
  if(camHover&&camMode!=='view'){const[x,y]=P(...camHover);c.strokeStyle=camMode==='calibrate'?'#ffcf6b':'#8fd0ff';c.lineWidth=1.5;
   c.beginPath();c.moveTo(x-12,y);c.lineTo(x+12,y);c.moveTo(x,y-12);c.lineTo(x,y+12);c.stroke();
@@ -289,6 +435,66 @@ setInterval(drawOverlay,100);
 let reachGrid=null,reachPitch=null;
 async function updateReach(){const p=S&&S.arm.target;if(!p)return;const pitch=Math.round(p[3]/5)*5;if(pitch===reachPitch)return;reachPitch=pitch;
  try{reachGrid=await fetch('/api/arm/reach?pitch='+pitch).then(r=>r.json())}catch(_){}}
+
+// ------------------------------------------------------------------ Ask Qwen
+let aiItems=[],aiSteps=[],aiBusy=false,aiRunning=false;
+async function aiStatus(){try{const st=await fetch('/api/ai/status').then(r=>r.json());$('aiPill').textContent=st.ok?st.model.split('/').pop():'not connected';
+ $('aiPill').className='pill '+(st.ok?'ok':'bad');$('aiPill').title=st.ok?st.base_url:(st.error||'')+' — is the GPU tunnel running?';
+ if(document.activeElement!==$('aiUrl'))$('aiUrl').value=st.base_url||'';
+ const tn=st.tunnel||{},warming=!st.ok&&tn.enabled&&tn.running&&tn.age_s!=null&&tn.age_s<75;
+ if(warming){$('aiPill').textContent='connecting…';$('aiPill').className='pill warn'}
+ $('aiErr').className=warming?'warn':'bad';
+ $('aiErr').textContent=st.ok?'':warming?`GPU tunnel is starting (${tn.age_s}s) — Qwen will be ready in a few seconds.`:'Not reachable: '+(st.error||'')+' — see the GPU tunnel log below, or paste the Brev https link above.';
+ if(!st.ok&&!warming&&!aiStatus.opened){aiStatus.opened=true;$('aiCfg').open=true}
+ const t=st.tunnel||{};$('tunBox').style.display=t.enabled?'block':'none';
+ if(t.enabled){$('tunState').innerHTML=t.running?'<span class="ok">running</span>':'<span class="bad">not running (retrying)</span>';$('tunLog').textContent=(t.log||[]).join('\n');$('tunLog').scrollTop=1e6}}catch(_){}}
+$('tunRestart').onclick=()=>post('/api/ai/tunnel/restart',{}).then(()=>{toast('Tunnel restarting…','info');setTimeout(aiStatus,1500)}).catch(e=>fail(e.message));
+$('aiSave').onclick=async()=>{$('aiSave').disabled=true;$('aiErr').textContent='Testing…';
+ try{const st=await post('/api/ai/config',{base_url:$('aiUrl').value.trim(),api_key:$('aiKey').value.trim()});
+  toast(st.ok?'Connected to '+st.model:'Saved, but not reachable yet',st.ok?'info':'error');await aiStatus()}catch(e){fail(e.message)}finally{$('aiSave').disabled=false}};
+$('aiUrl').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();$('aiSave').click()}});
+async function aiAsk(){if(aiBusy)return;const question=$('aiText').value.trim();aiSetBusy(true,'Qwen is looking at the camera…');
+ try{const r=await post('/api/ai/ask',{question});$('aiResult').innerHTML=`<div class="ans">${esc(r.answer)}</div>`}
+ catch(e){fail(e.message);$('aiResult').innerHTML=''}finally{aiSetBusy(false)}}
+setInterval(aiStatus,4000);aiStatus();
+function aiSetBusy(b,msg){aiBusy=b;$('aiAsk').disabled=$('aiFind').disabled=$('aiPlan').disabled=b;if(msg)$('aiResult').innerHTML=`<div class="obs">${esc(msg)}</div>`}
+async function aiFind(){const what=$('aiText').value.trim()||'every object on the table';if(aiBusy)return;aiSetBusy(true,'Qwen is looking…');aiSteps=[];
+ try{const r=await post('/api/ai/locate',{what});aiItems=r.objects.map(o=>({...o,action:'find'}));
+  $('aiResult').innerHTML=aiItems.length?aiItems.map((o,i)=>`<div class="it"><span>${i+1}. <b>${esc(o.label)}</b> <span class="cap">${o.xy?'arm '+o.xy.join(', ')+' mm':'px '+o.pixel.join(', ')}</span></span>
+   <button data-ai="pick" data-i="${i}">Pick</button><button data-ai="move_above" data-i="${i}">Above</button><button data-ai="place" data-i="${i}">Place here</button></div>`).join(''):'<div class="obs">Nothing found.</div>'}
+ catch(e){fail(e.message);$('aiResult').innerHTML=''}finally{aiSetBusy(false)}}
+async function aiPlan(){const goal=$('aiText').value.trim();if(!goal){toast('Type a goal first, e.g. "put the red block in the bowl"');return}if(aiBusy)return;aiSetBusy(true,'Qwen is planning…');
+ try{const r=await post('/api/ai/plan',{goal});aiSteps=r.steps;aiItems=r.steps.filter(s=>s.bbox);
+  $('aiResult').innerHTML=`<div class="obs">${esc(r.observation||'')}</div>`+(aiSteps.length?aiSteps.map((s,i)=>`<div class="it" id="aiStep${i}"><span>${i+1}. <b>${s.action}</b> ${esc(s.label)} <span class="cap">${s.xy?'arm '+s.xy.join(', ')+' mm':''}</span></span></div>`).join('')
+   +'<div class="row3"><button class="aibtn" id="aiRun">▶ Run plan</button><button id="aiClear">Clear</button></div>':'<div class="obs">No steps — object not visible or goal impossible.</div>');
+  if($('aiRun')){$('aiRun').onclick=aiRun;$('aiClear').onclick=aiClear}}
+ catch(e){fail(e.message);$('aiResult').innerHTML=''}finally{aiSetBusy(false)}}
+function aiClear(){aiItems=[];aiSteps=[];$('aiResult').innerHTML='';post('/api/live',{clear:true}).catch(()=>{})}
+async function waitTask(id){for(;;){await new Promise(r=>setTimeout(r,150));const st=await fetch('/api/task').then(r=>r.json());
+ if(st.id!==id||st.state!=='running'){if(st.state==='failed')throw Error(st.message);return st}}}
+async function runStep(s){if(s.action==='done')return;const body=s.action==='home'?{task:'home'}:{task:s.action,pixel:s.pixel};
+ const st=await post('/api/task',{source:'qwen',from_photo:true,speed:+$('speed').value,...body});await waitTask(st.id)}
+async function aiRun(){if(!enabled){toast('Controls are stopped — press Enable first');return}if(aiRunning)return;aiRunning=true;$('aiRun').disabled=true;
+ try{for(let i=0;i<aiSteps.length;i++){$('aiStep'+i).style.color='#ffcf6b';await runStep(aiSteps[i]);$('aiStep'+i).style.color='#6fe0a6'}toast('Plan finished','info')}
+ catch(e){fail('Plan stopped: '+e.message)}finally{aiRunning=false;if($('aiRun'))$('aiRun').disabled=false}}
+$('aiAsk').onclick=aiAsk;
+$('aiLive').onclick=async()=>{const on=S&&S.live&&S.live.auto;try{if(on){await post('/api/live',{query:'',clear:true});toast('Live detection off','info')}
+ else{const q=$('aiText').value.trim()||'every object on the table';await post('/api/live',{query:q});toast('Live detection on: '+q,'info')}}catch(e){fail(e.message)}};
+function showLive(L){if(!L)return;const b=$('aiLive');b.style.background=L.auto?'#1e8a5a':'';b.textContent=L.auto?'📡 Live ON':'📡 Live';
+ const n=(L.tracks||[]).filter(t=>!t.lost).length;$('liveInfo').textContent=(L.tracks&&L.tracks.length)||L.auto?`live tracker ${L.fps} fps · ${n}/${(L.tracks||[]).length} objects locked`+(L.qwen_s!=null&&L.auto?` · Qwen refresh every ~${L.qwen_s}s`:'')+(L.age_s!=null?` · detections ${L.age_s}s old`:'')+(L.error?' · ⚠ '+L.error:''):''}
+$('aiPilot').onclick=async()=>{const goal=$('aiText').value.trim();if(!goal){toast('Type what to do, e.g. "pick up the coin"');return}
+ if(!enabled){toast('Controls are stopped — press Enable first');return}
+ try{await post('/api/ai/pilot/start',{goal,strategy:$('aiStrategy').value});toast('Qwen is driving — press Space / STOP any time','info')}catch(e){fail(e.message)}};
+$('pilotStop').onclick=()=>post('/api/ai/pilot/stop',{}).catch(e=>fail(e.message));
+function showPilot(pl){if(!pl)return;const on=pl.running||pl.log.length;$('pilotBox').style.display=on?'block':'none';if(!on)return;
+ $('pilotState').textContent=pl.running?`step ${pl.step} · ${pl.state}`:'finished';$('pilotState').className='pill '+(pl.running?'warn':'ok');
+ $('pilotGoal').textContent=pl.goal+(pl.running?'':' — '+pl.result);$('pilotStop').style.display=pl.running?'':'none';$('aiPilot').disabled=pl.running;
+ const html=pl.log.slice().reverse().map(e=>`<div><span class="cap">${new Date(e.t*1000).toLocaleTimeString()}</span> <b>${esc(e.state)}</b> ${esc(e.text)}</div>`).join('');
+ if($('pilotLog').dataset.h!==html){$('pilotLog').innerHTML=html;$('pilotLog').dataset.h=html}}$('aiFind').onclick=aiFind;$('aiPlan').onclick=aiPlan;
+$('aiResult').addEventListener('click',async e=>{const b=e.target.closest('[data-ai]');if(!b)return;const o=aiItems[+b.dataset.i];
+ if(!enabled){toast('Controls are stopped — press Enable first');return}
+ try{const st=await post('/api/task',{source:'human',from_photo:true,task:b.dataset.ai,pixel:o.pixel,speed:+$('speed').value});await waitTask(st.id);if(b.dataset.ai==='place')aiClear()}catch(err){fail(err.message)}});
+$('aiText').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();aiPlan()}});
 // ------------------------------------------------------------------ state
 const f3=(p,a,b)=>p?p.slice(a,b).map(v=>v.toFixed(0)).join(' / '):'--';
 async function refresh(){try{S=await fetch('/api/state').then(r=>r.json());}catch(e){$('safety').className='status stopped';$('safetyText').textContent='HUB NOT RUNNING — start Start-Robot-Hub.ps1';return}
@@ -298,7 +504,7 @@ async function refresh(){try{S=await fetch('/api/state').then(r=>r.json());}catc
  $('enableBtn').disabled=enabled;
  const a=S.arm;$('linkPill').textContent=a.connected?(a.link_ok?'arm link OK':'arm link slow'):'arm offline';$('linkPill').className='pill '+(a.connected&&a.link_ok?'ok':'bad');
  $('kbPill').textContent=document.hasFocus()?'keyboard ready':'click page for keyboard';$('kbPill').className='pill '+(document.hasFocus()?'ok':'warn');
- $('armBadge').textContent=a.connected?(a.goal?'Moving to target':a.moving?'Moving':'Holding'):'Offline';$('armBadge').className='pill '+(a.connected?'ok':'bad');
+ $('armBadge').textContent=a.connected?(a.servos_silent?'⚠ NO SERVO POWER':a.goal?'Moving to target':a.moving?'Moving':'Holding'):'Offline';$('armBadge').className='pill '+(a.connected&&!a.servos_silent?'ok':'bad');
  if(!a.connected)$('armBadge').title=a.error||'';
  $('pose').textContent=f3(a.pose,0,3);$('cmd').textContent=f3(a.target,0,3);$('wrist').textContent=f3(a.pose,3,6);
  $('polar').textContent=a.pose?Math.hypot(a.pose[0],a.pose[1]).toFixed(0)+' mm / '+(Math.atan2(a.pose[1],a.pose[0])*180/Math.PI).toFixed(0)+'°':'--';
@@ -309,11 +515,23 @@ async function refresh(){try{S=await fetch('/api/state').then(r=>r.json());}catc
  const tk=S.task;$('taskState').textContent=tk.state==='running'?`Task #${tk.id} ${tk.task}: ${tk.step}…`:tk.state==='idle'?'Task: idle'+(tk.holding?' · holding object':''):`Task #${tk.id} ${tk.task}: ${tk.state}${tk.message&&tk.state!=='done'?' — '+tk.message:''}`+(tk.holding?' · holding object':'');
  $('taskState').className='taskstate '+(tk.state==='failed'?'bad':tk.state==='running'?'warn':'');
  if(tk.state==='failed'&&tk.id!==refresh.lastFail){refresh.lastFail=tk.id;toast('Task failed: '+tk.message)}
- const cs=S.calibration;$('calStatus').textContent=cs.ready?`— ✔ ${cs.points.length} points, error ${cs.error_mm} mm, table Z ${cs.table_z} mm`:`— ${cs.points.length}/4 points`;
+ const cs=S.calibration;{const lp=cs.look_pose;$('lookState').innerHTML=lp?(cs.at_look?'<span class="ok">set · arm is there ✔</span>':'<span class="warn">set · arm is NOT there</span>'):'<span class="cap">not set (fixed camera)</span>';
+  $('fixedCam').checked=!lp;$('lookGo').disabled=$('lookBtn').disabled=!lp;$('lookBtn').style.display=lp?'':'none';
+  $('calTouch').style.display=lp?'':'none';$('calTouch').disabled=!cs.pending;
+  const want=lp||!$('fixedCam').checked?LOOK_STEPS:FIXED_STEPS;if($('calSteps').dataset.k!==want.length+''){$('calSteps').innerHTML=want;$('calSteps').dataset.k=want.length+''}}
+ $('calStatus').textContent=cs.ready?`— ✔ using ${cs.used.length} of ${cs.points.length} points`+(cs.used.length<cs.points.length?` (${cs.points.length-cs.used.length} bad clicks ignored, shown red)`:'')+`, error ${cs.error_mm} mm`+(cs.error_mm<=12?' — good':' — redo, too high')+`, table Z ${cs.table_z} mm`:`— ${cs.points.length}/4 points`;
+ showPilot(S.pilot);showLive(S.live);showScene(S.scene);
  const cam=S.camera;setCam(cam.connected,cam.connected?'':'Camera not available: '+(cam.error||'waiting'));$('camPill').textContent=cam.connected?cam.mode:'offline';
  $('detections').textContent=cam.connected&&cam.detections.length?cam.detections.map(d=>d.label+' '+d.xyz_mm.join('/')+' mm').join(' · '):'';
- $('roverState').innerHTML=S.rover.connected?'<span class="ok">Rover connected</span>':'<span class="bad">Rover not responding</span> '+esc((S.rover.error||'').slice(0,60));
+ $('roverLast').textContent='last sent: '+(roverDirectMode()?(roverLastDirect||'--'):(S.rover.last_sent?JSON.stringify({T:1,L:S.rover.last_sent[0],R:S.rover.last_sent[1]})+' (hub → rover'+(S.rover.connected?', answered)':', no answer)'):'--'));
+ $('roverState').innerHTML=S.rover.connected?'<span class="ok">Rover connected</span>'+[S.rover.latency_ms!=null?` · ${S.rover.latency_ms} ms`:'',S.rover.battery_v?` · 🔋 ${S.rover.battery_v} V`+(S.rover.battery_v<11.1?' <b style="color:#ff5c6a">LOW</b>':''):'',S.rover.rssi!=null?` · Wi-Fi ${S.rover.rssi} dBm`:''].join(''):(roverDirectMode()?'<span class="warn">Driving direct from browser</span> <span class="cap">(hub link: '+esc((S.rover.error||'').slice(0,40))+')</span>':'<span class="bad">Rover not found</span> '+esc((S.rover.error||'').slice(0,60)));
+ if(document.activeElement!==$('roverUrl'))$('roverUrl').value=(S.rover.url||'').replace(/^https?:\/\//,'');
  $('log').innerHTML=[...notes,...S.safety.events].sort((x,y)=>y.time-x.time).slice(0,50)
   .map(e=>`<div class="${esc(e.event)} ${esc(e.source)}">${new Date(e.time*1000).toLocaleTimeString()} <b>${esc(e.source)}</b> ${esc(e.event)} ${esc(e.detail)}</div>`).join('')}
+// remember per-browser preferences (best effort)
+const PREF='robotHubPrefs';function savePrefs(){try{localStorage.setItem(PREF,JSON.stringify({speed:$('speed').value,rover:$('roverSpeed').value,frame,camMode}))}catch(_){}}
+try{const p=JSON.parse(localStorage.getItem(PREF)||'{}');if(p.speed){$('speed').value=p.speed;$('speed').oninput()}if(p.rover){$('roverSpeed').value=p.rover;$('roverSpeed').oninput()}
+ if(p.frame)document.querySelector(`[data-frame="${p.frame}"]`)?.click();if(p.camMode&&p.camMode!=='calibrate')document.querySelector(`[data-mode="${p.camMode}"]`)?.click()}catch(_){}
+['speed','roverSpeed'].forEach(id=>$(id).addEventListener('change',savePrefs));document.querySelectorAll('[data-frame],[data-mode]').forEach(b=>b.addEventListener('click',()=>setTimeout(savePrefs,0)));
 setInterval(refresh,150);refresh();
 </script></body></html>

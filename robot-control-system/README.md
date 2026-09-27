@@ -132,34 +132,79 @@ bot.place(pixel=(480, 240))
 bot.home()
 ```
 
----
+## Quick start (new computer)
 
-## 5. Qwen-VL (or any OpenAI-compatible vision model)
-
-`qwen_agent.py` sends the overhead frame to the model, gets back **pixel points**, draws them on a
-preview image, and (optionally) runs pick/place tasks.
-
-```bash
-# model server: Ollama shown; vLLM, LM Studio, llama.cpp server all work
-ollama pull qwen2.5vl:7b
-export MODEL_BASE_URL=http://127.0.0.1:11434/v1  VISION_MODEL=qwen2.5vl:7b
-
-python qwen_agent.py --locate "red block"                              # find it, save last_plan.jpg
-python qwen_agent.py --goal "put the red block in the bowl"            # plan only + preview
-python qwen_agent.py --goal "put the red block in the bowl" --execute  # asks, then runs it
+```powershell
+cd robot-control-system
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m robot_hub.server --no-oak      # first start creates config.json
 ```
 
-(PowerShell: `$env:MODEL_BASE_URL = '...'`, or `.\Run-Qwen-Observe.ps1 -Goal "..." [-Execute]`.)
-
-**Coordinates.** Qwen2.5-VL answers in image pixels, Qwen3-VL in 0–1000 normalized units.
-`--coords auto` chooses by model name; override with `--coords pixel|norm1000`. Always run
-`--locate` first and check that the marker in `last_plan.jpg` sits on the object before using `--execute`.
-
-The model can only choose `pick`, `place`, `move_above`, `home` or `done`. Its plan is checked
-(e.g. no place while empty, points inside the image, max 6 steps), and each step goes through the
-same reach checks as a human request.
+Open http://127.0.0.1:8765, press **Enable**. Your personal settings (arm COM port, rover IP,
+camera, taught poses) live in `config.json`, which is **not** in git; `config.example.json` is the
+shared template. Calibration (`calibration.json`) is per camera mount and also not in git.
 
 ---
+
+## 5. Qwen-VL on a cloud GPU (or any OpenAI-compatible vision model)
+
+The hub talks to the model directly. Use the **Ask Qwen** panel under the camera image:
+
+- **Find**: type what to look for (e.g. *red block*). Boxes are drawn on the camera image and
+  each object gets **Pick / Above / Place here** buttons.
+- **Plan**: type a goal (e.g. *put the red block in the bowl*) and press Enter. Qwen proposes
+  steps, which are shown as boxes and with arm X/Y. Check them, then press **Run plan**.
+
+Every step is a normal reach-checked task, and STOP cancels it.
+
+**Connecting a Brev (or other cloud) GPU running vLLM:**
+
+```bash
+# in Ubuntu/WSL on the robot laptop (keep this window open)
+brev refresh
+brev port-forward <instance-name> -p 8000:8000
+```
+
+The hub expects the model at `http://127.0.0.1:8000/v1` (`ai_base_url` in `config.json`) and
+picks up the model name automatically. The pill next to *Ask Qwen* shows the model once it is
+connected. For Ollama, set `ai_base_url` to `http://127.0.0.1:11434/v1`.
+
+**Accuracy:** Qwen2.5-VL gives positions in the pixels of the image it received, after resizing to
+multiples of 28 px. The hub resizes the frame itself (640×400 → 644×392) and scales the answers
+back, so there is no hidden offset. Qwen3-VL uses 0–1000 coordinates; `ai_coords: "auto"`
+detects this from the model name. Grasp points are the centres of the `bbox_2d` boxes Qwen returns.
+
+### Autopilot (🤖 Do it)
+
+Type a goal, pick a strategy and press **🤖 Do it**. The camera is on the gripper, so the arm always
+takes its photos from the **look pose** (Calibrate → *Set look pose here* → 4-6 touch points).
+
+- **Collect into rover container** (default once a container drop is taught): Qwen lists the items
+  once (e.g. *pick up all the prunes and tissues*), the arm picks the nearest, lifts straight up,
+  drops it into the box on the rover, and repeats until Qwen sees an empty table twice.
+  Teach the drop once: jog the gripper over the container → **📦 Save container drop here** →
+  **📦 Test drop**.
+- **Plan & pick**: one reasoning step with Qwen, then pick/place.
+- **Sort into drop zone** (older): named drop spots, e.g. *put the prunes on the coin and the tissues on the paper*.
+
+What makes it fast and robust:
+
+- **Live tracker** (`tracker.py`): Qwen's boxes are tracked at camera frame rate (OpenCV template
+  matching, no extra install), so Qwen is only asked again when the item list is used up.
+  **📡 Live** keeps re-asking Qwen in the background for YOLO-style live boxes.
+- **Grab check**: back at the look pose the tracker checks the item really left its spot; a miss is
+  retried (small aim offsets around the spot, fresh Qwen look after 3 misses). It never gives up
+  until STOP.
+- **Live align**: over the item the gripper camera nudges the aim; it learns from confirmed grabs.
+- **Wrist roll**: oval items are grabbed across their short side (`jaw_axis_deg`, `roll_sign`,
+  `align_roll` in config).
+- Servo overload (pressing into the table) is detected in < 0.5 s and torque is switched back on.
+
+Qwen connection: `tunnel.sh` (run by the hub through WSL) finds a running Brev instance with vLLM
+on port 8000 and forwards it to `127.0.0.1:8000`; the log is in the dashboard's *Model server settings*.
+
+Command line (same thing, via the hub): `python qwen_agent.py --status | --locate "red block" | --goal "..." [--execute]`.
 
 ## 6. Why the arm no longer "shoots away"
 
@@ -194,6 +239,11 @@ table the arm stands on is at about z = −126.
 | `grasp_pitches_deg` | approach angles tried in order (90 = straight down) |
 | `camera_source`, `camera_width`, `camera_height` | `"oak"` or `"webcam:N"`, and resolution |
 | `calibration_file` | where to keep calibration (default `calibration.json`) |
+| `container_pose` | `[x, y, z, pitch, roll]` where the gripper lets go over the rover's box (set with the dashboard) |
+| `jaw_axis_deg`, `roll_sign`, `align_roll`, `roll_min_ratio` | turning the wrist to grab oval items across their short side |
+| `live_align`, `live_align_max_mm` | gripper-camera aim correction over the item |
+| `still_there_score`, `empty_grab_score` | tracker thresholds for "the grab missed" |
+| `ai_base_url`, `ai_model` | OpenAI-compatible vision model (vLLM); empty model = use whatever the server runs |
 
 ## Files
 
@@ -201,7 +251,14 @@ table the arm stands on is at about z = −126.
 robot_hub/arm.py         real-time arm engine (40 Hz stream, jog, goals, reach guard)
 robot_hub/kinematics.py  RoArm-M3 IK/FK ported from Waveshare firmware + joint limits
 robot_hub/vision.py      camera <-> arm calibration (homography, table height)
-robot_hub/tasks.py       pick / place / move-above task runner
+robot_hub/tasks.py       pick / place / move-above / container-drop task runner
+robot_hub/pilot.py       Qwen autopilot: collect, sort, plan & pick, dive
+robot_hub/tracker.py     live tracker, grab checks, item orientation (OpenCV)
+robot_hub/ai.py          Qwen-VL client (locate / plan / describe)
+robot_hub/tunnel.py      starts and watches tunnel.sh (SSH tunnel to the GPU)
+robot_hub/scene.py       OAK-D scene camera <-> arm calibration
+robot_hub/oak_worker.py  OAK-D in its own process (a USB crash can't kill the hub)
+tunnel.sh                finds the Brev GPU and forwards the model to 127.0.0.1:8000
 robot_hub/camera.py      OAK-D and USB webcam capture
 robot_hub/rover.py       WAVE ROVER driver with watchdog
 robot_hub/server.py      HTTP API + dashboard

@@ -45,6 +45,9 @@ class FakeArm:
     def write(self, data):
         for line in data.decode().strip().splitlines():
             cmd = json.loads(line)
+            self.__dict__.setdefault("raw", []).append(cmd)
+            if getattr(self, "mute", False) and cmd["T"] == 105:
+                continue
             with self.lock:
                 if cmd["T"] == 105:
                     self.out += self._feedback()
@@ -82,21 +85,28 @@ class FakeCamera:
 
 class CoreTests(unittest.TestCase):
     def test_speed_mixing_and_clamping(self):
-        self.assertEqual(mix_speeds(1, 0, 700), (700, 700))
-        self.assertEqual(mix_speeds(0, 1, 700), (700, -700))
-        self.assertEqual(mix_speeds(9, -9, 700), (0, 700))
+        self.assertEqual(mix_speeds(1, 0), (1800, 1800))        # same as the rover's own page
+        self.assertEqual(mix_speeds(0, 1), (1800, -1800))
+        self.assertEqual(mix_speeds(9, -9), (0, 1800))
+        self.assertEqual(mix_speeds(0.6, 0), (1080, 1080))
 
     def test_rover_duration_watchdog_sends_stop(self):
         safety, opener = SafetyController(), FakeOpener()
         rover = RoverDriver("http://robot", 700, safety, opener)
         safety.enable_human()
-        rover.command(1, 0, 100)
+        rover.command(1, 0, 500)
+        time.sleep(.2)
+        rover.command(1, 0, 500)
         time.sleep(.35)
+        rover.command(1, 0, 500)            # held ~0.8 s: ramps up to full speed
+        time.sleep(1.0)
         state = rover.state()
         rover.close()
         decoded = [json.loads(__import__('urllib.parse').parse.parse_qs(
             __import__('urllib.parse').parse.urlparse(url).query)['json'][0]) for url in opener.urls]
-        self.assertTrue(any(item["L"] == 700 for item in decoded))
+        self.assertTrue(any(item["L"] == 700 for item in decoded))     # rover_max_speed 700
+        ups = [item["L"] for item in decoded if item["L"] > 0]
+        self.assertLess(ups[0], 300)            # starts gently (no jump to full speed)
         self.assertEqual((decoded[-1]["L"], decoded[-1]["R"]), (0, 0))
         self.assertTrue(state["connected"])
 
@@ -196,6 +206,10 @@ class CoreTests(unittest.TestCase):
         goal = arm.move_to(x=2000, y=0, clamp=True)
         self.assertTrue(arm.reachable(goal))
         self.assertGreater(goal[0], 250)
+        import math
+        goal = arm.move_to(x=-400, y=420, clamp=True)       # far, behind-left
+        self.assertTrue(arm.reachable(goal))
+        self.assertAlmostEqual(math.degrees(math.atan2(goal[1], goal[0])), 133.6, delta=1)
         arm.close()
 
     def test_never_sends_unreachable_pose(self):
@@ -229,6 +243,70 @@ class CoreTests(unittest.TestCase):
                 self.assertAlmostEqual(math.degrees(f[3]), p, places=6)
                 checked += 1
         self.assertGreater(checked, 300)
+
+    def test_far_goal_never_spins_base_through_180(self):
+        """Base servo cannot wrap: 170 deg -> -170 deg must go round the front."""
+        import math
+        from robot_hub import kinematics
+        r = 300
+        a0, a1 = math.radians(170), math.radians(-170)
+        arm, fake, _ = self.make_arm(FakeArm((r * math.cos(a0), r * math.sin(a0), 150, 0, 0, 0)),
+                                     arm_goal_speed_mm_s=2000, arm_accel_mm_s2=20000)
+        arm.move_to(x=r * math.cos(a1), y=r * math.sin(a1))
+        self.assertTrue(wait_until(lambda: arm.state()["goal"] is None, 6))
+        angles = [math.degrees(math.atan2(p[1], p[0])) for p in fake.targets]
+        self.assertTrue(all(abs(a) <= 175.5 for a in angles), max(angles, key=abs))
+        self.assertTrue(any(abs(a) < 10 for a in angles))          # went via the front
+        steps = [abs(b - a) for a, b in zip(angles, angles[1:])]
+        self.assertLess(max(steps), 20)                             # no sudden spin
+        self.assertEqual([p for p in fake.targets if not kinematics.reachable(*p[:4])], [])
+        arm.close()
+
+    def test_side_view_goal_changes_reach_and_height_safely(self):
+        from robot_hub import kinematics
+        arm, fake, _ = self.make_arm(FakeArm((180, 0, 250, 0, 0, 0)),
+                                     arm_goal_speed_mm_s=2000, arm_accel_mm_s2=20000)
+        arm.move_to(x=440, y=0, z=-60, pitch=0)
+        self.assertTrue(wait_until(lambda: arm.state()["goal"] is None, 6))
+        self.assertAlmostEqual(fake.pose[0], 440, delta=0.5)
+        self.assertEqual([p for p in fake.targets if not kinematics.reachable(*p[:4])], [])
+        arm.close()
+
+    def test_rover_wifi_glitch_does_not_stop_everything(self):
+        safety, opener = SafetyController(), FakeOpener()
+        rover = RoverDriver("http://robot", 700, safety, opener)
+        safety.enable_human()
+        opener.fail = True
+        rover.command(1, 0, 300)
+        time.sleep(.5)
+        self.assertFalse(safety.state()["latched"])
+        self.assertFalse(rover.state()["connected"])
+        opener.fail = False
+        time.sleep(.3)
+        self.assertTrue(rover.state()["connected"])
+        rover.close()
+
+    def test_rover_is_found_automatically(self):
+        class Page:
+            def __init__(self, body): self.body = body
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+            def read(self, n=None): return self.body
+        class Net:
+            def __init__(self): self.rover = "10.9.8.77"
+            def open(self, url, timeout):
+                host = url.split("/")[2]
+                if host != self.rover:
+                    raise OSError("no route")
+                return Page(b"<span>VOLTAGE</span><span>RSSI</span>" if url.endswith("/") else b"OK")
+        net, safety = Net(), SafetyController()
+        rover = RoverDriver("auto", 700, safety, opener=net, discover_prefixes=["10.9.8."])
+        self.assertTrue(wait_until(lambda: rover.state()["connected"], 6))
+        self.assertEqual(rover.state()["url"], "http://10.9.8.77")
+        net.rover = "10.9.8.12"                     # rover gets a new address
+        self.assertTrue(wait_until(lambda: rover.state()["url"] == "http://10.9.8.12", 20))
+        self.assertTrue(wait_until(lambda: rover.state()["connected"], 3))
+        rover.close()
 
     def test_blocked_arm_stops_with_notice(self):
         class StuckArm(FakeArm):
@@ -322,6 +400,53 @@ class CoreTests(unittest.TestCase):
             self.assertAlmostEqual(fake.pose[0], x, delta=2)
             arm.close()
 
+    def test_grip_force_sent_once_and_blind_motion_frozen(self):
+        arm, fake, _ = self.make_arm(gripper_torque=300, arm_goal_speed_mm_s=40)
+        time.sleep(.3)
+        self.assertEqual([c for c in fake.raw if c["T"] == 107], [{"T": 107, "tor": 300}])
+        arm.move_xyz(360, 80, 150)
+        time.sleep(.05)
+        fake.mute = True                    # feedback stops (USB glitch)
+        time.sleep(2.0)
+        st = arm.state()
+        self.assertIsNone(st["goal"])
+        self.assertIn("lost position feedback", st["notice"]["message"])
+        x = fake.pose[0]
+        time.sleep(.3)
+        self.assertEqual(fake.pose[0], x)   # no blind motion
+        fake.mute = False
+        arm.close()
+
+    def test_nonsense_servo_readings_block_motion(self):
+        arm, fake, _ = self.make_arm()
+        sent = len(fake.targets)
+        fake.pose = [57, 0, -223, -540, 180, 180]      # what the arm reports with servos unpowered
+        time.sleep(.4)
+        st = arm.state()
+        self.assertFalse(st["connected"])
+        self.assertIn("servos not answering", st["error"])
+        with self.assertRaises(RuntimeError):
+            arm.jog(vx=1)
+        with self.assertRaises(RuntimeError):
+            arm.move_xyz(300, 0, 150)
+        self.assertEqual(len(fake.targets), sent)       # nothing sent to the arm
+        fake.pose = [300, 0, 200, 0, 0, 20]             # power restored
+        self.assertTrue(wait_until(lambda: arm.state()["connected"], 2))
+        self.assertEqual(arm.state()["target"][:3], [300, 0, 200])   # resync, no jump
+        arm.close()
+
+    def test_park_task(self):
+        import tempfile
+        from robot_hub.tasks import TaskRunner
+        with tempfile.TemporaryDirectory() as d:
+            cal = self._calibrated(d)
+            arm, fake, safety = self.make_arm(arm_goal_speed_mm_s=900, arm_accel_mm_s2=6000)
+            runner = TaskRunner(arm, safety, cal)
+            runner.submit({"task": "park"})
+            self.assertTrue(wait_until(lambda: runner.status()["state"] == "done", 8))
+            self.assertEqual([round(v) for v in fake.pose[:4]], [170, 0, 80, 30])
+            arm.close()
+
     def test_arm_nudge_preserves_wrist(self):
         arm, fake, _ = self.make_arm()
         pose = arm.nudge(5, -5, 2, 3)
@@ -372,34 +497,47 @@ class CoreTests(unittest.TestCase):
             controller.action({"action": "arm_nudge", "dx_mm": 50}, "qwen")
         controller.close()
 
-    def test_qwen_agent_plan_validation(self):
-        import qwen_agent as qa
-        self.assertEqual(qa.coord_mode("qwen2.5vl:7b", "auto"), "pixel")
-        self.assertEqual(qa.coord_mode("qwen3-vl:8b", "auto"), "norm1000")
-        self.assertEqual(qa.to_pixel([500, 500], (640, 400), "norm1000"), (320, 200))
-        self.assertEqual(qa.to_pixel([100, 50, 140, 90], (640, 400), "pixel"), (120, 70))
-        with self.assertRaises(ValueError):
-            qa.to_pixel([700, 10], (640, 400), "pixel")
+    def test_vision_model_coordinates_and_validation(self):
+        from robot_hub.ai import VisionModel, extract_json
+        import cv2, numpy as np
+        jpeg = cv2.imencode(".jpg", np.zeros((400, 640, 3), np.uint8))[1].tobytes()
+        m = VisionModel(model="Qwen/Qwen2.5-VL-32B-Instruct")
+        self.assertEqual(m.mode(), "pixel")
+        send, seen, scale = m.prepare(jpeg, (640, 400))
+        self.assertEqual(seen, (644, 392))                       # multiples of 28
+        img = cv2.imdecode(np.frombuffer(send, np.uint8), cv2.IMREAD_COLOR)
+        self.assertEqual(img.shape[:2], (392, 644))
+        box, px = m.to_camera([322, 196, 322, 196], seen, scale, (640, 400))
+        self.assertEqual(px, (320.0, 200.0))                     # scaled back exactly
+        self.assertEqual(VisionModel(model="qwen3-vl-8b").mode(), "norm1000")
+        self.assertEqual(extract_json('```json\n[{"a":1}]\n```'), [{"a": 1}])
 
-        class Bot:
-            def state(self): return {"task": {"holding": False}}
-        good = ('```json\n{"observation":"red block, bowl","steps":['
-                '{"action":"pick","object":"red block","point":[300,150]},'
-                '{"action":"place","target":"bowl","point":[480,240]}]}\n```')
-        orig = qa.call_model
-        try:
-            qa.call_model = lambda *a, **k: good
-            obs, steps, _ = qa.plan(Bot(), b"", (640, 400), "goal", "pixel", "m")
-            self.assertEqual([s["action"] for s in steps], ["pick", "place"])
-            self.assertEqual(steps[0]["pixel"], (300, 150))
-            qa.call_model = lambda *a, **k: '{"steps":[{"action":"place","point":[1,1]}]}'
-            with self.assertRaises(ValueError):          # place while empty
-                qa.plan(Bot(), b"", (640, 400), "goal", "pixel", "m")
-            qa.call_model = lambda *a, **k: '{"steps":[{"action":"self_destruct"}]}'
-            with self.assertRaises(ValueError):
-                qa.plan(Bot(), b"", (640, 400), "goal", "pixel", "m")
-        finally:
-            qa.call_model = orig
+        replies = []
+        m.ask = lambda prompt, jpeg, size, max_tokens=700: (replies.pop(0), (644, 392), (640 / 644, 400 / 392))
+        replies.append('{"observation":"block, bowl","steps":['
+                       '{"action":"pick","object":"red block","bbox_2d":[290,135,310,160]},'
+                       '{"action":"place","target":"bowl","bbox_2d":[460,215,500,255]}]}')
+        plan = m.plan(jpeg, (640, 400), "goal")
+        self.assertEqual([s["action"] for s in plan["steps"]], ["pick", "place"])
+        self.assertAlmostEqual(plan["steps"][0]["pixel"][0], 300 * 640 / 644, delta=0.1)
+        replies.append('{"steps":[{"action":"place","bbox_2d":[1,1,2,2]}]}')
+        with self.assertRaises(ValueError):                      # place while empty
+            m.plan(jpeg, (640, 400), "goal")
+        replies.append('{"steps":[{"action":"self_destruct"}]}')
+        with self.assertRaises(ValueError):
+            m.plan(jpeg, (640, 400), "goal")
+        replies.append('[{"bbox_2d":[100,100,120,130],"label":"red block"},{"bbox_2d":[9999,1,9999,2]}]')
+        found = m.locate(jpeg, (640, 400), "red block")["objects"]
+        self.assertEqual(len(found), 1)                          # off-image box dropped
+
+class CameraSourceTests(unittest.TestCase):
+    def test_parse_source(self):
+        from robot_hub.camera import parse_source
+        self.assertEqual(parse_source("webcam:2"), ("webcam", 2))
+        self.assertEqual(parse_source("oak"), ("oak", None))
+        self.assertEqual(parse_source(""), ("auto", None))
+        self.assertEqual(parse_source("http://10.0.0.5:8080/video"), ("url", "http://10.0.0.5:8080/video"))
+        self.assertEqual(parse_source("url:rtsp://cam/1"), ("url", "rtsp://cam/1"))
 
 
 if __name__ == "__main__":
