@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Robot Control Hub</title>
+<style>
+:root{--bg:#0d141c;--panel:#16212c;--line:#2a3b4b;--muted:#93a5b6;--text:#edf3f8;--blue:#3b7bb3;--blue2:#2a5a85;--green:#1e8a5a;--red:#c0303c;--amber:#ffcf6b;--ok:#6fe0a6;--bad:#ff8790;
+ font-family:"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text)}
+*{box-sizing:border-box}body{margin:0 auto;padding:14px;max-width:1440px}
+header{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:stretch;margin-bottom:12px;position:sticky;top:0;z-index:5;background:var(--bg);padding:4px 0 8px}
+.status{padding:0 16px;border-radius:9px;font-weight:700;display:flex;align-items:center;gap:12px;min-height:52px}
+.status small{font-weight:400;opacity:.85}.stopped{background:#7e1d27}.enabled{background:#145a3a}
+.pill{font:600 12px Consolas,monospace;padding:3px 8px;border-radius:20px;background:rgba(0,0,0,.25)}
+button{border:0;border-radius:8px;min-height:40px;background:var(--blue2);color:#fff;font-size:14px;font-weight:700;touch-action:none;cursor:pointer;user-select:none;transition:background .1s}
+button:hover{background:var(--blue)}button.on{background:#1b4368;box-shadow:inset 0 0 0 2px #8fd0ff}button:disabled{opacity:.35;cursor:not-allowed}
+.stopBtn{background:var(--red);font-size:17px;padding:0 26px}.stopBtn:hover{background:#d93a47}
+.enableBtn{background:var(--green);font-size:15px;padding:0 22px}.enableBtn:hover{background:#25a36b}
+.layout{display:grid;grid-template-columns:minmax(360px,.9fr) minmax(560px,1.3fr);gap:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:13px;margin-bottom:12px;position:relative}
+h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}h2 .cap{font-weight:400}
+.cap{font-size:12px;color:var(--muted)}
+.camWrap{position:relative;aspect-ratio:8/5;background:#05080b;border-radius:8px;overflow:hidden}
+.camWrap img{width:100%;height:100%;object-fit:contain;display:block}.camMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--muted);font-size:13px}
+.maps{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mapBox{position:relative}canvas{width:100%;background:#0a1017;border-radius:9px;cursor:crosshair;display:block;border:1px solid #1f2d3a}
+.hover{position:absolute;left:8px;top:8px;font:12px Consolas,monospace;background:rgba(0,0,0,.55);padding:3px 7px;border-radius:5px;pointer-events:none;display:none}
+.toolbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.seg{display:inline-flex;border-radius:8px;overflow:hidden}.seg button{border-radius:0;min-height:32px;padding:0 12px;font-size:13px;background:#223444}.seg button.sel{background:var(--blue)}
+input[type=range]{width:130px;accent-color:#5aa7e6}
+.pad{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.pad button{min-height:38px;font-size:13px}.pad button kbd{opacity:.6;font-size:11px;margin-left:4px}
+.target{display:grid;grid-template-columns:repeat(5,1fr) auto auto;gap:6px;align-items:end;margin-top:10px}
+.target label{font-size:11px;color:var(--muted)}.target input{width:100%;margin-top:3px;padding:7px;background:#0d141c;color:#fff;border:1px solid #3a5163;border-radius:6px;font:14px Consolas}
+.target input.dirty{border-color:var(--amber)}.target button{padding:0 14px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}.metric{background:#0f1821;padding:7px 9px;border-radius:7px}
+.metric b{display:block;font-size:11px;color:var(--muted);font-weight:600}.metric span{font:600 13px Consolas,monospace}
+details{margin-top:10px}summary{cursor:pointer;color:var(--muted);font-size:12px}
+.keys{font-size:12px;color:var(--muted);line-height:1.8}kbd{background:#253a4c;border-radius:4px;padding:1px 6px;color:#fff;font:12px Consolas}
+.drive{display:grid;grid-template-columns:repeat(3,64px);gap:6px}.drive .f{grid-column:2}.drive .l{grid-column:1}.drive .h{grid-column:2;background:#6d3640}.drive .r{grid-column:3}.drive .b{grid-column:2}
+.log{height:150px;overflow:auto;background:#0f1821;border-radius:7px;padding:8px;font:12px Consolas,monospace;line-height:1.5}
+.log .warning,.log .stop{color:var(--amber)}.log .dashboard{color:#9fd3ff}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--amber)}
+.locked{position:absolute;inset:40px 0 0 0;background:rgba(13,20,28,.55);display:flex;align-items:flex-start;justify-content:center;padding-top:120px;border-radius:11px;pointer-events:none;font-weight:700;color:#ffd6da;opacity:0;transition:opacity .2s}
+.isStopped .locked{opacity:1}
+.camWrap canvas{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;border-radius:0}.camWrap.pointing canvas{cursor:crosshair}.modes{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.modes button{min-height:32px;font-size:13px;padding:0 12px;background:#223444}.modes button.sel{background:var(--blue)}.modes button[data-mode=calibrate].sel{background:#8a5a12}.calbox{background:#2a2112;border:1px solid #6d5220;border-radius:8px;padding:9px 11px;font-size:12.5px;line-height:1.5;margin-top:8px;display:none}.calbox.show{display:block}.calbox ol{margin:4px 0 6px 18px;padding:0}.calbox .row2{display:flex;gap:6px;margin-top:6px}.calbox button{min-height:30px;font-size:12px;padding:0 10px}.taskbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.taskbar button{min-height:32px;font-size:13px;padding:0 12px}.taskstate{font:600 12px Consolas,monospace;padding:4px 8px;border-radius:6px;background:#0f1821;flex:1;min-width:180px}#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#3a1c22;border:1px solid #b44;color:#ffe3e6;padding:11px 18px;border-radius:9px;font-weight:600;max-width:80vw;box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+#toast.info{background:#1b3345;border-color:#4a8ac0;color:#e6f4ff}#toast.show{opacity:1}
+@media(max-width:1050px){.layout,header{grid-template-columns:1fr}.maps{grid-template-columns:1fr}.target{grid-template-columns:repeat(3,1fr)}.metrics{grid-template-columns:repeat(2,1fr)}}
+</style></head><body>
+<header>
+ <div id="safety" class="status stopped"><span id="safetyText">Connecting…</span><span id="linkPill" class="pill">arm --</span><span id="kbPill" class="pill">keyboard</span></div>
+ <button class="stopBtn" id="stopBtn">■ STOP <small>(Space)</small></button>
+ <button class="enableBtn" id="enableBtn">Enable controls</button>
+</header>
+<div class="layout"><main>
+ <section class="panel"><h2>Overhead camera <span id="camPill" class="cap"></span></h2>
+  <div class="modes" id="camModes"><span class="cap" style="align-self:center">Click on image to:</span>
+   <button data-mode="view" class="sel">Just look</button><button data-mode="move_above">Move above</button>
+   <button data-mode="pick">Pick</button><button data-mode="place">Place</button><button data-mode="calibrate">Calibrate</button></div>
+  <div class="camWrap"><img id="cam" alt="" onerror="camOn=false;camErrAt=Date.now();this.removeAttribute('src');$('camMsg').style.display='flex';$('camMsg').textContent='Camera stream interrupted — retrying…'"><canvas id="camOverlay" width="640" height="400"></canvas><div id="camMsg" class="camMsg">Waiting for camera…</div></div>
+  <div id="detections" class="cap" style="margin-top:6px"></div>
+  <div class="taskbar"><span class="taskstate" id="taskState">Task: idle</span>
+   <button id="homeBtn">Home</button><button id="openBtn">Open</button><button id="closeBtn">Close</button><button id="cancelBtn" style="background:#6d3640">Cancel task</button></div>
+  <div class="calbox" id="calBox"><b>Camera calibration</b> <span id="calStatus"></span>
+   <ol><li>Put a small mark (tape, coin) on the table where the camera can see it.</li>
+   <li>Jog the arm (pitch about 90°, gripper pointing down) until the gripper tip just touches the mark.</li>
+   <li>Click the mark in the camera image. Repeat for 5-8 marks spread over the whole reachable table area.</li></ol>
+   Four points is the minimum; more points spread wider gives better accuracy. Table height is taken from these points and becomes the arm's safe floor.
+   <div class="row2"><button id="calUndo">Undo last point</button><button id="calClear">Clear all</button></div></div>
+</section>
+ <section class="panel" id="roverPanel"><h2>Rover <span class="cap">arrow keys · controller after pressing Y</span></h2>
+  <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap"><div class="drive">
+   <button class="f" data-drive="1,0">▲</button><button class="l" data-drive="0,-1">◀</button><button class="h" id="roverHalt">■</button><button class="r" data-drive="0,1">▶</button><button class="b" data-drive="-1,0">▼</button>
+  </div><div><div class="cap">Rover speed <b id="roverSpeedV">60%</b></div><input id="roverSpeed" type="range" min="0.2" max="1" step="0.05" value="0.6">
+  <div class="cap" id="roverState" style="margin-top:6px">--</div></div></div>
+  <div class="locked">STOPPED — press Enable</div></section>
+ <section class="panel"><h2>Activity</h2><div id="log" class="log"></div></section>
+</main><aside>
+ <section class="panel" id="armPanel"><h2>Arm <span id="armBadge" class="pill">--</span></h2>
+  <div class="maps">
+   <div class="mapBox"><canvas id="top" width="440" height="440"></canvas><div class="hover" id="topHover"></div>
+    <div class="cap" style="margin-top:4px">Top view: blue = reachable at the current height and pitch. Click to move there. ▲ forward (+X), ◀ left (+Y).</div></div>
+   <div class="mapBox"><canvas id="side" width="440" height="440"></canvas><div class="hover" id="sideHover"></div>
+    <div class="cap" style="margin-top:4px">Side view: blue = reachable at the current wrist pitch. Click to set reach + height.</div></div>
+  </div>
+  <div class="toolbar">
+   <span class="cap">Speed <b id="speedV">50%</b></span><input id="speed" type="range" min="0.1" max="1" step="0.05" value="0.5">
+   <span class="seg" id="frameSeg"><button data-frame="cartesian" class="sel">XYZ</button><button data-frame="polar">Reach / swing</button></span>
+   <span class="cap" id="inputSrc">Input: none</span>
+  </div>
+  <div class="pad">
+   <button data-jog="1,1" data-key="KeyA">◀ Left<kbd>A</kbd></button><button data-jog="1,-1" data-key="KeyD">Right ▶<kbd>D</kbd></button>
+   <button data-jog="0,1" data-key="KeyW">▲ Fwd<kbd>W</kbd></button><button data-jog="0,-1" data-key="KeyS">▼ Back<kbd>S</kbd></button>
+   <button data-jog="2,1" data-key="KeyR">Up<kbd>R</kbd></button><button data-jog="2,-1" data-key="KeyF">Down<kbd>F</kbd></button>
+   <button data-jog="3,1" data-key="KeyT">Pitch +<kbd>T</kbd></button><button data-jog="3,-1" data-key="KeyG">Pitch −<kbd>G</kbd></button>
+   <button data-jog="4,1" data-key="KeyZ">Roll +<kbd>Z</kbd></button><button data-jog="4,-1" data-key="KeyC">Roll −<kbd>C</kbd></button>
+   <button data-jog="5,1" data-key="KeyQ">Open<kbd>Q</kbd></button><button data-jog="5,-1" data-key="KeyE">Close<kbd>E</kbd></button>
+  </div>
+  <div class="target">
+   <label>X mm<input id="tX" type="number"></label><label>Y mm<input id="tY" type="number"></label><label>Z mm<input id="tZ" type="number"></label>
+   <label>Pitch °<input id="tP" type="number"></label><label>Grip °<input id="tG" type="number"></label>
+   <button id="useCurrent" title="Reset boxes to where the arm is">Current</button><button id="goBtn">Go ▶</button>
+  </div>
+  <div class="metrics">
+   <div class="metric"><b>Actual X / Y / Z</b><span id="pose">--</span></div>
+   <div class="metric"><b>Command X / Y / Z</b><span id="cmd">--</span></div>
+   <div class="metric"><b>Pitch / Roll / Grip</b><span id="wrist">--</span></div>
+   <div class="metric"><b>Reach / Base angle</b><span id="polar">--</span></div>
+  </div>
+  <details><summary>Keyboard and controller shortcuts</summary><p class="keys">
+   <kbd>W</kbd><kbd>S</kbd> forward/back · <kbd>A</kbd><kbd>D</kbd> left/right · <kbd>R</kbd><kbd>F</kbd> up/down · <kbd>T</kbd><kbd>G</kbd> pitch · <kbd>Z</kbd><kbd>C</kbd> roll · <kbd>Q</kbd><kbd>E</kbd> open/close<br>
+   hold <kbd>Shift</kbd> precise · <kbd>[</kbd><kbd>]</kbd> speed down/up · <kbd>Space</kbd>/<kbd>Esc</kbd> STOP · <kbd>Enter</kbd> in a box = Go · arrows drive rover<br>
+   <b>Xbox:</b> left stick move · right stick ↕ up/down, ↔ roll · LB/RB pitch · LT/RT open/close · X precise · Y Arm⇄Rover · B STOP</p></details>
+  <div class="locked">STOPPED — press Enable</div>
+ </section>
+</aside></div>
+<div id="toast"></div>
+<script>
+const $=id=>document.getElementById(id);
+let S=null,enabled=false,frame='cartesian',fine=false,padMode='arm',tDirty=false;
+let jogBusy=false,lastJogNonzero=false,driveBusy=false,lastDriveNonzero=false,lastDriveSent=0,lastNotice=0;
+const keys=new Set(),held={jog:null,drive:null},notes=[];
+// ------------------------------------------------------------------ helpers
+async function post(path,data){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+ let j={};try{j=await r.json()}catch(_){}if(!r.ok)throw Error(j.error||('HTTP '+r.status));return j}
+let toastT=null;function toast(msg,kind='error'){const t=$('toast');t.textContent=msg;t.className='show '+(kind==='info'?'info':'');clearTimeout(toastT);toastT=setTimeout(()=>t.className='',kind==='info'?2200:4500)}
+function note(msg,kind='info'){notes.unshift({time:Date.now()/1000,source:'dashboard',event:kind,detail:msg});notes.length=Math.min(notes.length,20)}
+function fail(msg){note(msg,'warning');toast(msg)}
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// ------------------------------------------------------------------ safety
+async function stopAll(reason){keys.clear();held.jog=held.drive=null;try{await post('/api/stop',{reason})}catch(e){fail(e.message)}refresh()}
+async function enableControls(){try{await post('/api/enable',{});toast('Controls enabled','info')}catch(e){fail(e.message)}refresh()}
+$('stopBtn').onclick=()=>stopAll('Dashboard STOP');$('enableBtn').onclick=enableControls;
+// ------------------------------------------------------------------ input
+const dz=(v,d=.15)=>Math.abs(v)<d?0:Math.sign(v)*((Math.abs(v)-d)/(1-d))**1.6;
+let prevBtn=[];
+function readPad(){const gp=[...(navigator.getGamepads?navigator.getGamepads():[])].find(g=>g&&g.connected);if(!gp)return null;
+ const b=i=>gp.buttons[i]?gp.buttons[i].value:0,pressed=i=>b(i)>.5&&!(prevBtn[i]>.5);
+ if(pressed(1))stopAll('Controller STOP (B)');
+ if(pressed(3)){padMode=padMode==='arm'?'rover':'arm';toast('Controller now drives the '+padMode.toUpperCase(),'info')}
+ if(pressed(2)){fine=!fine;toast('Precise mode '+(fine?'ON':'off'),'info')}
+ prevBtn=gp.buttons.map(x=>x.value);const a=gp.axes;
+ return{arm:padMode==='arm'?[dz(-a[1]),dz(-a[0]),dz(-a[3]),b(5)-b(4),dz(a[2]),b(6)-b(7)]:[0,0,0,0,0,0],drive:padMode==='rover'?[dz(-a[1]),dz(a[0])]:[0,0]}}
+const k=(a,b)=>(keys.has(a)?1:0)-(keys.has(b)?1:0);
+const precise=()=>fine||keys.has('ShiftLeft')||keys.has('ShiftRight');
+function tick(){const pad=readPad();
+ let v=[k('KeyW','KeyS'),k('KeyA','KeyD'),k('KeyR','KeyF'),k('KeyT','KeyG'),k('KeyZ','KeyC'),k('KeyQ','KeyE')],src=v.some(x=>x)?'keyboard':'';
+ if(held.jog){v[held.jog[0]]=held.jog[1];src='buttons'}
+ if(pad&&pad.arm.some(x=>x)){v=v.map((x,i)=>x||pad.arm[i]);src='controller'}
+ document.querySelectorAll('[data-key]').forEach(b=>b.classList.toggle('on',keys.has(b.dataset.key)||!!(held.jog&&b.dataset.jog===held.jog.join(','))));
+ $('inputSrc').textContent='Input: '+(src||(pad?'controller ready ('+padMode+')':'none'))+(precise()?' · PRECISE':'');
+ const nonzero=v.some(x=>x);
+ if(nonzero&&!enabled&&!tick.warned){tick.warned=true;toast('Controls are stopped — press Enable first')}if(!nonzero)tick.warned=false;
+ if(enabled&&(nonzero||lastJogNonzero)&&!jogBusy){jogBusy=true;
+  post('/api/arm/jog',{vx:v[0],vy:v[1],vz:v[2],vpitch:v[3],vroll:v[4],vgrip:v[5],frame,scale:+$('speed').value*(precise()?.25:1)})
+   .then(()=>{lastJogNonzero=nonzero}).catch(e=>{fail(e.message);keys.clear();held.jog=null;lastJogNonzero=false}).finally(()=>jogBusy=false)}
+ let d=[k('ArrowUp','ArrowDown'),k('ArrowRight','ArrowLeft')].map(x=>x*+$('roverSpeed').value);
+ if(held.drive)d=held.drive.map(x=>x*+$('roverSpeed').value);if(pad&&pad.drive.some(x=>x))d=pad.drive;
+ const dn=d.some(x=>x),now=performance.now();
+ if(enabled&&!driveBusy&&((dn&&now-lastDriveSent>120)||(!dn&&lastDriveNonzero))){driveBusy=true;lastDriveSent=now;
+  post('/api/action',{source:'human',action:'drive',linear:d[0],turn:d[1],duration_ms:300,request_id:'dash'}).then(()=>lastDriveNonzero=dn)
+   .catch(e=>{fail(e.message);lastDriveNonzero=false}).finally(()=>driveBusy=false)}}
+setInterval(tick,50);
+const isTextField=el=>el&&el.tagName==='INPUT'&&(el.type==='number'||el.type==='text');
+document.addEventListener('keydown',e=>{
+ if(e.code==='Space'||e.code==='Escape'){e.preventDefault();if(!e.repeat)stopAll('Keyboard STOP');return}
+ if(isTextField(document.activeElement)){if(e.code==='Enter'){e.preventDefault();goTarget()}return}
+ if(e.code==='BracketLeft'||e.code==='BracketRight'){const s=$('speed');s.value=Math.max(.1,Math.min(1,+s.value+(e.code==='BracketRight'?.1:-.1)));s.oninput();return}
+ if(e.code.startsWith('Arrow')||e.code.startsWith('Key'))e.preventDefault();keys.add(e.code)});
+document.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Space')e.preventDefault()});
+window.addEventListener('blur',()=>{keys.clear();held.jog=held.drive=null});
+// never let a focused button/slider swallow keys (e.g. Space re-clicking Enable)
+document.addEventListener('click',e=>{const el=e.target.closest('button,input[type=range]');if(el)setTimeout(()=>el.blur(),0)});
+document.addEventListener('change',e=>{if(e.target.type==='range')e.target.blur()});
+for(const el of document.querySelectorAll('[data-jog]')){const[i,s]=el.dataset.jog.split(',').map(Number);
+ el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);held.jog=[i,s]});
+ ['pointerup','pointercancel','lostpointercapture'].forEach(n=>el.addEventListener(n,()=>{if(held.jog&&held.jog[0]===i&&held.jog[1]===s)held.jog=null}))}
+for(const el of document.querySelectorAll('[data-drive]')){const d=el.dataset.drive.split(',').map(Number);
+ el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);held.drive=d;el.classList.add('on')});
+ ['pointerup','pointercancel','lostpointercapture'].forEach(n=>el.addEventListener(n,()=>{held.drive=null;el.classList.remove('on')}))}
+$('roverHalt').onclick=()=>{held.drive=null;if(enabled)post('/api/action',{source:'human',action:'drive',linear:0,turn:0,duration_ms:100,request_id:'dash'}).catch(e=>fail(e.message))};
+for(const el of document.querySelectorAll('[data-frame]'))el.onclick=()=>{frame=el.dataset.frame;document.querySelectorAll('[data-frame]').forEach(b=>b.classList.toggle('sel',b===el))};
+$('speed').oninput=()=>$('speedV').textContent=Math.round($('speed').value*100)+'%';
+$('roverSpeed').oninput=()=>$('roverSpeedV').textContent=Math.round($('roverSpeed').value*100)+'%';
+window.addEventListener('gamepadconnected',e=>toast('Controller connected: '+e.gamepad.id.slice(0,40),'info'));
+// ------------------------------------------------------------------ targets
+async function goto(t,label){if(!enabled){toast('Controls are stopped — press Enable first');return}
+ try{const r=await post('/api/action',{source:'human',action:'arm_target',request_id:'dash-target',speed:+$('speed').value,...t});
+  const g=r.result.pose;if(label)note(label+' → '+g.slice(0,3).map(v=>v.toFixed(0)).join(' / '))}catch(e){fail(e.message)}}
+const boxes=[['tX',0],['tY',1],['tZ',2],['tP',3],['tG',5]];
+function copyPose(){const p=S&&S.arm&&(S.arm.goal||S.arm.target||S.arm.pose);if(!p)return;boxes.forEach(([id,i])=>{$(id).value=p[i].toFixed(0);$(id).classList.remove('dirty')})}
+document.querySelectorAll('.target input').forEach(i=>i.addEventListener('input',()=>{tDirty=true;i.classList.add('dirty')}));
+function goTarget(){const n=id=>$(id).value===''?undefined:+$(id).value;tDirty=false;
+ goto({x_mm:n('tX'),y_mm:n('tY'),z_mm:n('tZ'),pitch_deg:n('tP'),gripper_deg:n('tG')},'Target');document.activeElement.blur()}
+$('goBtn').onclick=goTarget;$('useCurrent').onclick=()=>{tDirty=false;copyPose()};
+// ------------------------------------------------------------------ maps
+const topC=$('top'),sideC=$('side');
+const ws=()=>S&&S.arm.workspace||{arm_reach_min_mm:90,arm_reach_max_mm:460,arm_z_min_mm:-120,arm_z_max_mm:480};
+function clampXYZ(x,y,z){const W=ws();let r=Math.hypot(x,y);if(r<1e-6){x=W.arm_reach_min_mm;y=0;r=x}
+ const rc=Math.min(W.arm_reach_max_mm,Math.max(W.arm_reach_min_mm,r));return[x*rc/r,y*rc/r,Math.min(W.arm_z_max_mm,Math.max(W.arm_z_min_mm,z))]}
+function topXf(){const R=ws().arm_reach_max_mm+25,sc=(topC.width-16)/(2*R);return{sc,cx:topC.width/2,cy:topC.height/2}}
+function sideXf(){const W=ws(),R=W.arm_reach_max_mm+25,zr=W.arm_z_max_mm-W.arm_z_min_mm+50,sc=Math.min((sideC.width-40)/R,(sideC.height-24)/zr);return{sc,ox:28,oy:12+(W.arm_z_max_mm+25)*sc}}
+const T2S=(p,t)=>[t.cx-p[1]*t.sc,t.cy-p[0]*t.sc];
+const S2S=(p,s)=>[s.ox+Math.hypot(p[0],p[1])*s.sc,s.oy-p[2]*s.sc];
+let hoverTop=null,hoverSide=null;
+function dot(c,x,y,r,fill,stroke,w=2){c.beginPath();c.arc(x,y,r,0,2*Math.PI);if(fill){c.fillStyle=fill;c.fill()}if(stroke){c.strokeStyle=stroke;c.lineWidth=w;c.stroke()}}
+function arcPath(c,from,to,map){c.beginPath();const r0=Math.hypot(from[0],from[1]),r1=Math.hypot(to[0],to[1]),a0=Math.atan2(from[1],from[0]);
+ const dth=((Math.atan2(to[1],to[0])-a0+Math.PI*3)%(2*Math.PI))-Math.PI;
+ for(let i=0;i<=24;i++){const f=i/24,r=r0+(r1-r0)*f,a=a0+dth*f,z=from[2]+(to[2]-from[2])*f,[x,y]=map([r*Math.cos(a),r*Math.sin(a),z]);i?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()}
+function draw(){const W=ws(),a=S&&S.arm,P=a&&a.pose,Tg=a&&a.target,G=a&&a.goal;
+ // top
+ let c=topC.getContext('2d'),t=topXf();c.clearRect(0,0,topC.width,topC.height);
+ c.fillStyle='rgba(70,150,215,.16)';const bands=(a&&a.reach_here)||[[W.arm_reach_min_mm,W.arm_reach_max_mm]];for(const[r0,r1]of bands){c.beginPath();c.arc(t.cx,t.cy,r1*t.sc,0,2*Math.PI);c.moveTo(t.cx+r0*t.sc,t.cy);c.arc(t.cx,t.cy,r0*t.sc,0,2*Math.PI);c.fill('evenodd')}
+ c.strokeStyle='#223242';c.lineWidth=1;for(let r=100;r<W.arm_reach_max_mm;r+=100){c.beginPath();c.arc(t.cx,t.cy,r*t.sc,0,2*Math.PI);c.stroke()}
+ c.beginPath();c.moveTo(t.cx,8);c.lineTo(t.cx,topC.height-8);c.moveTo(8,t.cy);c.lineTo(topC.width-8,t.cy);c.stroke();
+ c.fillStyle='#6f8497';c.font='11px Consolas';c.fillText('+X fwd',t.cx+5,16);c.fillText('+Y',10,t.cy-5);for(let r=100;r<W.arm_reach_max_mm;r+=100)c.fillText(r,t.cx+3,t.cy-r*t.sc+12);
+ c.fillStyle='#3d5569';c.fillRect(t.cx-10,t.cy-10,20,20);
+ if(G&&Tg){c.strokeStyle='rgba(255,207,107,.7)';c.setLineDash([5,5]);c.lineWidth=2;arcPath(c,Tg,G,p=>T2S(p,t));c.setLineDash([])}
+ if(hoverTop){const[x,y]=T2S(hoverTop.p,t);dot(c,x,y,8,'rgba(255,255,255,.18)','rgba(255,255,255,.6)',1.5);
+  if(Tg){c.strokeStyle='rgba(255,255,255,.25)';c.setLineDash([3,4]);c.lineWidth=1;arcPath(c,Tg,[hoverTop.p[0],hoverTop.p[1],Tg[2]],p=>T2S(p,t));c.setLineDash([])}}
+ if(P){const[x,y]=T2S(P,t);c.strokeStyle='#6fe0a6';c.lineWidth=4;c.beginPath();c.moveTo(t.cx,t.cy);c.lineTo(x,y);c.stroke();dot(c,x,y,7,'#6fe0a6')}
+ if(Tg){const[x,y]=T2S(Tg,t);dot(c,x,y,11,null,'#8fd0ff')}
+ if(G){const[x,y]=T2S(G,t);dot(c,x,y,6,'#ffcf6b')}
+ // side
+ c=sideC.getContext('2d');let s=sideXf();c.clearRect(0,0,sideC.width,sideC.height);
+ if(reachGrid){c.fillStyle='rgba(70,150,215,.18)';const g=reachGrid;g.rows.forEach((row,ri)=>{const z=g.z_top-ri*g.cell;for(let ci=0;ci<row.length;ci++)if(row[ci]==='1'){const r=g.r0+ci*g.cell;if(r<W.arm_reach_min_mm||r>W.arm_reach_max_mm||z<(a&&a.z_floor||-1e9))continue;c.fillRect(s.ox+r*s.sc,s.oy-(z+g.cell/2)*s.sc,g.cell*s.sc+.5,g.cell*s.sc+.5)}})}
+ if(a&&a.z_floor!=null){c.strokeStyle='#b44';c.setLineDash([4,4]);c.lineWidth=1.5;c.beginPath();c.moveTo(s.ox,s.oy-a.z_floor*s.sc);c.lineTo(sideC.width,s.oy-a.z_floor*s.sc);c.stroke();c.setLineDash([]);c.fillStyle='#e88';c.fillText('floor '+a.z_floor.toFixed(0),sideC.width-70,s.oy-a.z_floor*s.sc-4)}
+ c.strokeStyle='#223242';c.lineWidth=1;for(let z=Math.ceil(W.arm_z_min_mm/100)*100;z<=W.arm_z_max_mm;z+=100){c.beginPath();c.moveTo(s.ox,s.oy-z*s.sc);c.lineTo(sideC.width,s.oy-z*s.sc);c.stroke()}
+ c.strokeStyle='#5a7285';c.lineWidth=2;c.beginPath();c.moveTo(0,s.oy);c.lineTo(sideC.width,s.oy);c.stroke();
+ c.fillStyle='#6f8497';c.font='11px Consolas';c.fillText('base height (Z=0)',s.ox+4,s.oy+14);c.fillText('reach →',sideC.width-58,s.oy-6);c.fillText('side view at current pitch',s.ox+4,14);
+ c.fillStyle='#3d5569';c.fillRect(s.ox-8,s.oy-16,16,16);
+ if(G&&Tg){c.strokeStyle='rgba(255,207,107,.7)';c.setLineDash([5,5]);c.lineWidth=2;c.beginPath();c.moveTo(...S2S(Tg,s));c.lineTo(...S2S(G,s));c.stroke();c.setLineDash([])}
+ if(hoverSide){const[x,y]=S2S(hoverSide.p,s);dot(c,x,y,8,'rgba(255,255,255,.18)','rgba(255,255,255,.6)',1.5)}
+ if(P){const[x,y]=S2S(P,s);c.strokeStyle='#6fe0a6';c.lineWidth=4;c.beginPath();c.moveTo(s.ox,s.oy-8);c.lineTo(x,y);c.stroke();dot(c,x,y,7,'#6fe0a6')}
+ if(Tg){const[x,y]=S2S(Tg,s);dot(c,x,y,11,null,'#8fd0ff')}
+ if(G){const[x,y]=S2S(G,s);dot(c,x,y,6,'#ffcf6b')}}
+function canvasPt(cv,e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]}
+function topPoint(e){const[px,py]=canvasPt(topC,e),t=topXf(),z=(S&&S.arm.target||[0,0,100])[2],raw=[(t.cy-py)/t.sc,(t.cx-px)/t.sc,z];return{raw,p:clampXYZ(...raw)}}
+function sidePoint(e){const Tg=S&&S.arm&&(S.arm.target||S.arm.pose);if(!Tg)return null;const[px,py]=canvasPt(sideC,e),s=sideXf(),r=Math.max(1,(px-s.ox)/s.sc),z=(s.oy-py)/s.sc,h=Math.atan2(Tg[1],Tg[0]);
+ const raw=[r*Math.cos(h),r*Math.sin(h),z];return{raw,p:clampXYZ(...raw)}}
+function inBands(p){const b=S&&S.arm.reach_here;if(!b)return true;const r=Math.hypot(p[0],p[1]);return b.some(([a,c])=>r>=a&&r<=c)}
+function showHover(el,pt){if(!pt){el.style.display='none';return}const moved=Math.hypot(pt.raw[0]-pt.p[0],pt.raw[1]-pt.p[1],pt.raw[2]-pt.p[2])>1||(el.id==='topHover'&&!inBands(pt.p));
+ el.style.display='block';el.innerHTML=pt.p.map(v=>v.toFixed(0)).join(' / ')+(moved?' <span class="warn">(outside reach — will stop at the edge)</span>':'')}
+topC.onmousemove=e=>{hoverTop=topPoint(e);showHover($('topHover'),hoverTop)};topC.onmouseleave=()=>{hoverTop=null;showHover($('topHover'),null)};
+sideC.onmousemove=e=>{hoverSide=sidePoint(e);showHover($('sideHover'),hoverSide)};sideC.onmouseleave=()=>{hoverSide=null;showHover($('sideHover'),null)};
+topC.onclick=e=>{const{p}=topPoint(e);goto({x_mm:Math.round(p[0]),y_mm:Math.round(p[1]),clamp:true},'Map click')};
+sideC.onclick=e=>{const pt=sidePoint(e);if(!pt)return;const p=pt.p;goto({x_mm:Math.round(p[0]),y_mm:Math.round(p[1]),z_mm:Math.round(p[2]),clamp:true},'Side click')};
+// ------------------------------------------------------------------ camera
+let camOn=false,camErrAt=0;function setCam(on,msg){if(on&&!camOn&&Date.now()-camErrAt<3000)return;if(on&&!camOn){$('cam').src='/camera.mjpg?'+Date.now()}if(!on&&camOn){$('cam').removeAttribute('src')}camOn=on;
+ $('camMsg').style.display=on?'none':'flex';if(msg)$('camMsg').textContent=msg}
+
+// ------------------------------------------------------------------ camera click modes + calibration
+let camMode='view',camHover=null;
+const ov=$('camOverlay');
+for(const b of document.querySelectorAll('[data-mode]'))b.onclick=()=>{camMode=b.dataset.mode;
+ document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('sel',x===b));
+ $('calBox').classList.toggle('show',camMode==='calibrate');document.querySelector('.camWrap').classList.toggle('pointing',camMode!=='view');
+ if(camMode!=='view'&&camMode!=='calibrate'&&!(S&&S.calibration.ready))toast('Calibrate the camera first (Calibrate button)')};
+function imgRect(){const size=S&&S.camera.size||[640,400],W=ov.clientWidth,H=ov.clientHeight,sc=Math.min(W/size[0],H/size[1]);
+ return{size,sc,ox:(W-size[0]*sc)/2,oy:(H-size[1]*sc)/2,W,H}}
+function camPixel(e){const r=ov.getBoundingClientRect(),R=imgRect(),u=(e.clientX-r.left-R.ox)/R.sc,v=(e.clientY-r.top-R.oy)/R.sc;
+ if(u<0||v<0||u>=R.size[0]||v>=R.size[1])return null;return[Math.round(u*10)/10,Math.round(v*10)/10]}
+function applyH(h,x,y){const w=h[2][0]*x+h[2][1]*y+h[2][2];return[(h[0][0]*x+h[0][1]*y+h[0][2])/w,(h[1][0]*x+h[1][1]*y+h[1][2])/w]}
+function invH(h){const[a,b,c]=h[0],[d,e,f]=h[1],[g,i,k]=h[2],det=a*(e*k-f*i)-b*(d*k-f*g)+c*(d*i-e*g);
+ return[[(e*k-f*i)/det,-(b*k-c*i)/det,(b*f-c*e)/det],[-(d*k-f*g)/det,(a*k-c*g)/det,-(a*f-c*d)/det],[(d*i-e*g)/det,-(a*i-b*g)/det,(a*e-b*d)/det]]}
+ov.onmousemove=e=>{camHover=camPixel(e)};ov.onmouseleave=()=>camHover=null;
+ov.onclick=async e=>{const px=camPixel(e);if(!px||camMode==='view')return;
+ if(camMode==='calibrate'){try{const st=await post('/api/calibration/point',{pixel:px});
+   toast(`Point ${st.points.length} saved`+(st.ready?` — fit error ${st.error_mm} mm`:` — ${4-st.points.length} more needed`),'info')}catch(err){fail(err.message)}return}
+ if(!enabled){toast('Controls are stopped — press Enable first');return}
+ try{await post('/api/task',{source:'human',task:camMode,pixel:px,speed:+$('speed').value});note(camMode+' at pixel '+px.join(', '))}catch(err){fail(err.message)}};
+$('calUndo').onclick=()=>post('/api/calibration/undo',{}).then(()=>toast('Removed last point','info')).catch(e=>fail(e.message));
+$('calClear').onclick=()=>{if(confirm('Delete all calibration points?'))post('/api/calibration/clear',{}).then(()=>toast('Calibration cleared','info')).catch(e=>fail(e.message))};
+const taskBtn=(id,body)=>$(id).onclick=()=>{if(!enabled){toast('Controls are stopped — press Enable first');return}post('/api/task',{source:'human',...body}).catch(e=>fail(e.message))};
+taskBtn('homeBtn',{task:'home'});taskBtn('openBtn',{task:'gripper',deg:60});taskBtn('closeBtn',{task:'gripper',deg:0});
+$('cancelBtn').onclick=()=>post('/api/task/cancel',{}).catch(e=>fail(e.message));
+function drawOverlay(){const c=ov.getContext('2d');if(ov.width!==ov.clientWidth||ov.height!==ov.clientHeight){ov.width=ov.clientWidth;ov.height=ov.clientHeight}
+ c.clearRect(0,0,ov.width,ov.height);if(!S)return;const R=imgRect(),P=(u,v)=>[R.ox+u*R.sc,R.oy+v*R.sc],cal=S.calibration;
+ c.font='12px Consolas';
+ cal.points.forEach((p,i)=>{const[x,y]=P(...p.px);c.strokeStyle='#ffcf6b';c.lineWidth=2;c.beginPath();c.moveTo(x-6,y);c.lineTo(x+6,y);c.moveTo(x,y-6);c.lineTo(x,y+6);c.stroke();c.fillStyle='#ffcf6b';c.fillText(i+1,x+6,y-6)});
+ if(cal.ready&&cal.h_inv&&S.arm.reach_here){ // reach ring projected into the image
+  const h=cal.h_inv;c.strokeStyle='rgba(111,224,166,.55)';c.setLineDash([6,5]);c.lineWidth=1.5;
+  for(const[r0,r1]of S.arm.reach_here)for(const r of[r0,r1]){c.beginPath();for(let a=0;a<=64;a++){const t=a/64*2*Math.PI,[u,v]=applyH(h,r*Math.cos(t),r*Math.sin(t)),[x,y]=P(u,v);a?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()}
+  c.setLineDash([])}
+ if(cal.arm_pixel){const[x,y]=P(...cal.arm_pixel);dot(c,x,y,9,null,'#6fe0a6',3);dot(c,x,y,3,'#6fe0a6')}
+ if(camHover&&camMode!=='view'){const[x,y]=P(...camHover);c.strokeStyle=camMode==='calibrate'?'#ffcf6b':'#8fd0ff';c.lineWidth=1.5;
+  c.beginPath();c.moveTo(x-12,y);c.lineTo(x+12,y);c.moveTo(x,y-12);c.lineTo(x,y+12);c.stroke();
+  let label=camHover.map(v=>v.toFixed(0)).join(', ')+' px';
+  if(cal.ready&&cal.h_inv){const hh=invH(cal.h_inv),[ax,ay]=applyH(hh,...camHover);label+=`  →  arm ${ax.toFixed(0)}, ${ay.toFixed(0)} mm`}
+  c.fillStyle='rgba(0,0,0,.6)';c.fillRect(x+10,y+8,c.measureText(label).width+10,18);c.fillStyle='#fff';c.fillText(label,x+15,y+21)}}
+setInterval(drawOverlay,100);
+// ------------------------------------------------------------------ reach grid for side view
+let reachGrid=null,reachPitch=null;
+async function updateReach(){const p=S&&S.arm.target;if(!p)return;const pitch=Math.round(p[3]/5)*5;if(pitch===reachPitch)return;reachPitch=pitch;
+ try{reachGrid=await fetch('/api/arm/reach?pitch='+pitch).then(r=>r.json())}catch(_){}}
+// ------------------------------------------------------------------ state
+const f3=(p,a,b)=>p?p.slice(a,b).map(v=>v.toFixed(0)).join(' / '):'--';
+async function refresh(){try{S=await fetch('/api/state').then(r=>r.json());}catch(e){$('safety').className='status stopped';$('safetyText').textContent='HUB NOT RUNNING — start Start-Robot-Hub.ps1';return}
+ enabled=!S.safety.latched;document.body.classList.toggle('isStopped',!enabled);
+ $('safety').className='status '+(enabled?'enabled':'stopped');
+ $('safetyText').innerHTML=enabled?'ENABLED <small>controls are live</small>':'STOPPED <small>'+esc(S.safety.reason)+' — press Enable</small>';
+ $('enableBtn').disabled=enabled;
+ const a=S.arm;$('linkPill').textContent=a.connected?(a.link_ok?'arm link OK':'arm link slow'):'arm offline';$('linkPill').className='pill '+(a.connected&&a.link_ok?'ok':'bad');
+ $('kbPill').textContent=document.hasFocus()?'keyboard ready':'click page for keyboard';$('kbPill').className='pill '+(document.hasFocus()?'ok':'warn');
+ $('armBadge').textContent=a.connected?(a.goal?'Moving to target':a.moving?'Moving':'Holding'):'Offline';$('armBadge').className='pill '+(a.connected?'ok':'bad');
+ if(!a.connected)$('armBadge').title=a.error||'';
+ $('pose').textContent=f3(a.pose,0,3);$('cmd').textContent=f3(a.target,0,3);$('wrist').textContent=f3(a.pose,3,6);
+ $('polar').textContent=a.pose?Math.hypot(a.pose[0],a.pose[1]).toFixed(0)+' mm / '+(Math.atan2(a.pose[1],a.pose[0])*180/Math.PI).toFixed(0)+'°':'--';
+ if(!a.connected&&a.error&&!refresh.lastErr){fail('Arm offline: '+a.error)}refresh.lastErr=!a.connected&&a.error;
+ if(a.notice&&a.notice.time>lastNotice){lastNotice=a.notice.time;if(Date.now()/1000-a.notice.time<5)toast(a.notice.message)}
+ if(!tDirty&&!boxes.some(([id])=>document.activeElement===$(id)))copyPose();
+ updateReach();draw();
+ const tk=S.task;$('taskState').textContent=tk.state==='running'?`Task #${tk.id} ${tk.task}: ${tk.step}…`:tk.state==='idle'?'Task: idle'+(tk.holding?' · holding object':''):`Task #${tk.id} ${tk.task}: ${tk.state}${tk.message&&tk.state!=='done'?' — '+tk.message:''}`+(tk.holding?' · holding object':'');
+ $('taskState').className='taskstate '+(tk.state==='failed'?'bad':tk.state==='running'?'warn':'');
+ if(tk.state==='failed'&&tk.id!==refresh.lastFail){refresh.lastFail=tk.id;toast('Task failed: '+tk.message)}
+ const cs=S.calibration;$('calStatus').textContent=cs.ready?`— ✔ ${cs.points.length} points, error ${cs.error_mm} mm, table Z ${cs.table_z} mm`:`— ${cs.points.length}/4 points`;
+ const cam=S.camera;setCam(cam.connected,cam.connected?'':'Camera not available: '+(cam.error||'waiting'));$('camPill').textContent=cam.connected?cam.mode:'offline';
+ $('detections').textContent=cam.connected&&cam.detections.length?cam.detections.map(d=>d.label+' '+d.xyz_mm.join('/')+' mm').join(' · '):'';
+ $('roverState').innerHTML=S.rover.connected?'<span class="ok">Rover connected</span>':'<span class="bad">Rover not responding</span> '+esc((S.rover.error||'').slice(0,60));
+ $('log').innerHTML=[...notes,...S.safety.events].sort((x,y)=>y.time-x.time).slice(0,50)
+  .map(e=>`<div class="${esc(e.event)} ${esc(e.source)}">${new Date(e.time*1000).toLocaleTimeString()} <b>${esc(e.source)}</b> ${esc(e.event)} ${esc(e.detail)}</div>`).join('')}
+setInterval(refresh,150);refresh();
+</script></body></html>
